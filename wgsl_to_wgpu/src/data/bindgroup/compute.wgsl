@@ -9,6 +9,7 @@ struct Transforms {};
 @group(0) @binding(2) var<storage, read_write> dst: Vertices;
 
 @group(1) @binding(0) var<uniform> transforms: Transforms;
+@group(1) @binding(1) var texture: texture_2d<f32>;
 
 @compute
 @workgroup_size(64)

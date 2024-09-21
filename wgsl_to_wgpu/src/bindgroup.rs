@@ -1,5 +1,7 @@
 use crate::{
-    indexed_name_to_ident, quote_shader_stages, wgsl::buffer_binding_type, CreateModuleError,
+    indexed_name_to_ident, quote_shader_stages,
+    wgsl::{buffer_binding_type, sampler_binding_type},
+    CreateModuleError,
 };
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::quote;
@@ -15,6 +17,7 @@ pub struct GroupBinding<'a> {
     pub binding_index: u32,
     pub binding_type: &'a naga::Type,
     pub address_space: naga::AddressSpace,
+    pub filterable: bool,
 }
 
 // TODO: Take an iterator instead?
@@ -197,6 +200,7 @@ fn bind_group_layout_entry(
 
     let binding_index = Literal::usize_unsuffixed(binding.binding_index as usize);
     let buffer_binding_type = buffer_binding_type(binding.address_space);
+    let filterable = binding.filterable;
 
     // TODO: Support more types.
     let binding_type = match binding.binding_type.inner {
@@ -233,8 +237,7 @@ fn bind_group_layout_entry(
                         naga::ScalarKind::Sint => quote!(wgpu::TextureSampleType::Sint),
                         naga::ScalarKind::Uint => quote!(wgpu::TextureSampleType::Uint),
                         naga::ScalarKind::Float => {
-                            // TODO: Don't assume all textures are filterable.
-                            quote!(wgpu::TextureSampleType::Float { filterable: true })
+                            quote!(wgpu::TextureSampleType::Float { filterable: #filterable })
                         }
                         _ => todo!(),
                     };
@@ -266,11 +269,7 @@ fn bind_group_layout_entry(
             }
         }
         naga::TypeInner::Sampler { comparison } => {
-            let sampler_type = if comparison {
-                quote!(wgpu::SamplerBindingType::Comparison)
-            } else {
-                quote!(wgpu::SamplerBindingType::Filtering)
-            };
+            let sampler_type = sampler_binding_type(comparison, filterable);
             quote!(wgpu::BindingType::Sampler(#sampler_type))
         }
         // TODO: Better error handling.
@@ -373,6 +372,7 @@ fn bind_group(group_no: u32, group: &GroupData) -> TokenStream {
 
 pub fn get_bind_group_data(
     module: &naga::Module,
+    filterable: bool,
 ) -> Result<BTreeMap<u32, GroupData>, CreateModuleError> {
     // Use a BTree to sort type and field names by group index.
     // This isn't strictly necessary but makes the generated code cleaner.
@@ -391,6 +391,7 @@ pub fn get_bind_group_data(
                 binding_index: binding.binding,
                 binding_type,
                 address_space: global.space,
+                filterable,
             };
             // Repeated bindings will probably cause a compile error.
             // We'll still check for it here just in case.
@@ -433,7 +434,7 @@ mod tests {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        assert_eq!(3, get_bind_group_data(&module).unwrap().len());
+        assert_eq!(3, get_bind_group_data(&module, true).unwrap().len());
     }
 
     #[test]
@@ -447,7 +448,7 @@ mod tests {
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
         assert!(matches!(
-            get_bind_group_data(&module),
+            get_bind_group_data(&module, true),
             Err(CreateModuleError::NonConsecutiveBindGroups)
         ));
     }
@@ -465,14 +466,14 @@ mod tests {
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
         assert!(matches!(
-            get_bind_group_data(&module),
+            get_bind_group_data(&module, true),
             Err(CreateModuleError::NonConsecutiveBindGroups)
         ));
     }
 
-    fn test_bind_groups(wgsl: &str, rust: &str, stages: wgpu::ShaderStages) {
+    fn test_bind_groups(wgsl: &str, rust: &str, stages: wgpu::ShaderStages, filterable: bool) {
         let module = naga::front::wgsl::parse_str(wgsl).unwrap();
-        let bind_group_data = get_bind_group_data(&module).unwrap();
+        let bind_group_data = get_bind_group_data(&module, filterable).unwrap();
         let actual = bind_groups_module(&bind_group_data, stages);
 
         assert_tokens_eq!(rust.parse().unwrap(), actual);
@@ -484,6 +485,7 @@ mod tests {
             include_str!("data/bindgroup/compute.wgsl"),
             include_str!("data/bindgroup/compute.rs"),
             wgpu::ShaderStages::COMPUTE,
+            false,
         );
     }
 
@@ -495,6 +497,7 @@ mod tests {
             include_str!("data/bindgroup/vertex_fragment.wgsl"),
             include_str!("data/bindgroup/vertex_fragment.rs"),
             wgpu::ShaderStages::VERTEX_FRAGMENT,
+            true,
         );
     }
 
@@ -506,6 +509,7 @@ mod tests {
             include_str!("data/bindgroup/vertex.wgsl"),
             include_str!("data/bindgroup/vertex.rs"),
             wgpu::ShaderStages::VERTEX,
+            true,
         );
     }
 
@@ -517,6 +521,7 @@ mod tests {
             include_str!("data/bindgroup/fragment.wgsl"),
             include_str!("data/bindgroup/fragment.rs"),
             wgpu::ShaderStages::FRAGMENT,
+            true,
         );
     }
 }

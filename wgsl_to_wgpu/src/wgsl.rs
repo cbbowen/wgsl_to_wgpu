@@ -53,6 +53,16 @@ pub fn buffer_binding_type(storage: naga::AddressSpace) -> TokenStream {
     }
 }
 
+pub fn sampler_binding_type(comparison: bool, filterable: bool) -> TokenStream {
+    if comparison {
+        quote!(wgpu::SamplerBindingType::Comparison)
+    } else if filterable {
+        quote!(wgpu::SamplerBindingType::Filtering)
+    } else {
+        quote!(wgpu::SamplerBindingType::NonFiltering)
+    }
+}
+
 pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTypes) -> TokenStream {
     match &ty.inner {
         naga::TypeInner::Scalar(scalar) => rust_scalar_type(scalar),

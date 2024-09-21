@@ -104,6 +104,9 @@ pub struct WriteOptions {
     /// or the generated code is not included in the src directory,
     /// leave this at its default value of `false`.
     pub rustfmt: bool,
+
+    /// Determines whether the texture and sampler bindings should be filterable.
+    pub non_filterable: bool,
 }
 
 /// The format to use for matrix and vector types.
@@ -208,7 +211,7 @@ fn create_shader_module_inner(
 ) -> Result<String, CreateModuleError> {
     let module = naga::front::wgsl::parse_str(wgsl_source).unwrap();
 
-    let bind_group_data = get_bind_group_data(&module)?;
+    let bind_group_data = get_bind_group_data(&module, !options.non_filterable)?;
     let shader_stages = wgsl::shader_stages(&module);
 
     // Write all the structs, including uniforms and entry function inputs.
