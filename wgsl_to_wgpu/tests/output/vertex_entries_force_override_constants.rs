@@ -13,6 +13,14 @@ pub struct Input1 {
     pub in5: [f32; 4],
     pub in6: [u32; 4],
 }
+#[derive(Default)]
+pub struct OverrideConstants {}
+impl OverrideConstants {
+    pub fn constants(&self) -> std::collections::HashMap<String, f64> {
+        let entries = std::collections::HashMap::from([]);
+        entries
+    }
+}
 impl Input0 {
     pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] = [
         wgpu::VertexAttribute {
@@ -98,35 +106,39 @@ pub fn vertex_state<'a, const N: usize>(
     }
 }
 pub const NUM_VERTEX_INPUTS_VS_MAIN_NONE: usize = 0;
-pub fn vs_main_none_entry() -> VertexEntry<NUM_VERTEX_INPUTS_VS_MAIN_NONE> {
+pub fn vs_main_none_entry(
+    step_modes: [wgpu::VertexStepMode; NUM_VERTEX_INPUTS_VS_MAIN_NONE],
+    overrides: &OverrideConstants,
+) -> VertexEntry<NUM_VERTEX_INPUTS_VS_MAIN_NONE> {
     VertexEntry {
         entry_point: ENTRY_VS_MAIN_NONE,
         buffers: [],
-        constants: Default::default(),
+        constants: overrides.constants(),
     }
 }
 pub const NUM_VERTEX_INPUTS_VS_MAIN_SINGLE: usize = 1;
 pub fn vs_main_single_entry(
-    input0: wgpu::VertexStepMode,
+    step_modes: [wgpu::VertexStepMode; NUM_VERTEX_INPUTS_VS_MAIN_SINGLE],
+    overrides: &OverrideConstants,
 ) -> VertexEntry<NUM_VERTEX_INPUTS_VS_MAIN_SINGLE> {
     VertexEntry {
         entry_point: ENTRY_VS_MAIN_SINGLE,
-        buffers: [Input0::vertex_buffer_layout(input0)],
-        constants: Default::default(),
+        buffers: [Input0::vertex_buffer_layout(step_modes[0usize])],
+        constants: overrides.constants(),
     }
 }
 pub const NUM_VERTEX_INPUTS_VS_MAIN_MULTIPLE: usize = 2;
 pub fn vs_main_multiple_entry(
-    input0: wgpu::VertexStepMode,
-    input1: wgpu::VertexStepMode,
+    step_modes: [wgpu::VertexStepMode; NUM_VERTEX_INPUTS_VS_MAIN_MULTIPLE],
+    overrides: &OverrideConstants,
 ) -> VertexEntry<NUM_VERTEX_INPUTS_VS_MAIN_MULTIPLE> {
     VertexEntry {
         entry_point: ENTRY_VS_MAIN_MULTIPLE,
         buffers: [
-            Input0::vertex_buffer_layout(input0),
-            Input1::vertex_buffer_layout(input1),
+            Input0::vertex_buffer_layout(step_modes[0usize]),
+            Input1::vertex_buffer_layout(step_modes[1usize]),
         ],
-        constants: Default::default(),
+        constants: overrides.constants(),
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {

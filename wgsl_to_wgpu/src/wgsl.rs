@@ -280,7 +280,11 @@ pub fn vertex_entry_structs(
                             .collect(),
                     };
 
-                    Some(input)
+                    if input.fields.is_empty() {
+                        None
+                    } else {
+                        Some(input)
+                    }
                 }
                 // An argument has to have a binding unless it is a structure.
                 _ => None,

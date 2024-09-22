@@ -107,6 +107,9 @@ pub struct WriteOptions {
 
     /// Determines whether the texture and sampler bindings should be filterable.
     pub non_filterable: bool,
+
+    // Always generate `OverrideConstants` even if it is empty. This is useful for providing consistency when the generated code is consumed automatically rather than used directly by the user.
+    pub force_override_constants: bool,
 }
 
 /// The format to use for matrix and vector types.
@@ -221,8 +224,8 @@ fn create_shader_module_inner(
     let vertex_module = vertex_struct_methods(&module);
     let compute_module = compute_module(&module);
     let entry_point_constants = entry_point_constants(&module);
-    let vertex_states = vertex_states(&module);
-    let fragment_states = fragment_states(&module);
+    let vertex_states = vertex_states(&module, options.force_override_constants);
+    let fragment_states = fragment_states(&module, options.force_override_constants);
 
     // Use a string literal if no include path is provided.
     let included_source = wgsl_include_path
@@ -261,7 +264,8 @@ fn create_shader_module_inner(
         }
     };
 
-    let override_constants = pipeline_overridable_constants(&module);
+    let override_constants =
+        pipeline_overridable_constants(&module, options.force_override_constants);
 
     let output = quote! {
         #structs
@@ -488,7 +492,10 @@ mod test {
                         },
                     }
                 }
-                pub fn fs_main_entry(targets: [Option<wgpu::ColorTargetState>; 0]) -> FragmentEntry<0> {
+                pub const NUM_TARGETS_FS_MAIN: usize = 0;
+                pub fn fs_main_entry(
+                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_MAIN],
+                ) -> FragmentEntry<NUM_TARGETS_FS_MAIN> {
                     FragmentEntry {
                         entry_point: ENTRY_FS_MAIN,
                         targets,
@@ -542,6 +549,24 @@ mod test {
         )
         .unwrap();
         assert_eq!(include_str!("data/fragment_simple_rustfmt.rs"), actual);
+    }
+
+    #[test]
+    fn create_shader_module_embed_source_force_override_constants() {
+        let source = include_str!("data/fragment_simple.wgsl");
+        let actual = create_shader_module_embedded(
+            source,
+            WriteOptions {
+                rustfmt: true,
+                force_override_constants: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            include_str!("data/fragment_simple_force_override_constants.rs"),
+            actual
+        );
     }
 
     #[test]

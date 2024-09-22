@@ -19,7 +19,10 @@ pub fn fragment_state<'a, const N: usize>(
         },
     }
 }
-pub fn fs_main_entry(targets: [Option<wgpu::ColorTargetState>; 0]) -> FragmentEntry<0> {
+pub const NUM_TARGETS_FS_MAIN: usize = 0;
+pub fn fs_main_entry(
+    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_MAIN],
+) -> FragmentEntry<NUM_TARGETS_FS_MAIN> {
     FragmentEntry {
         entry_point: ENTRY_FS_MAIN,
         targets,

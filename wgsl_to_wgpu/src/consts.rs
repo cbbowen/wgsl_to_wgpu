@@ -33,7 +33,10 @@ pub fn consts(module: &naga::Module) -> Vec<TokenStream> {
         .collect()
 }
 
-pub fn pipeline_overridable_constants(module: &naga::Module) -> TokenStream {
+pub fn pipeline_overridable_constants(
+    module: &naga::Module,
+    force_override_constants: bool,
+) -> TokenStream {
     let overrides: Vec<_> = module.overrides.iter().map(|(_, o)| o).collect();
 
     let fields: Vec<_> = overrides
@@ -109,9 +112,10 @@ pub fn pipeline_overridable_constants(module: &naga::Module) -> TokenStream {
         quote!(let mut entries = std::collections::HashMap::from([#(#required_entries),*]);)
     };
 
-    if !fields.is_empty() {
+    if !fields.is_empty() || force_override_constants {
         // Create a Rust struct that can initialize the constants dictionary.
         quote! {
+            #[derive(Default)]
             pub struct OverrideConstants {
                 #(#fields),*
             }
@@ -201,10 +205,11 @@ mod tests {
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
 
-        let actual = pipeline_overridable_constants(&module);
+        let actual = pipeline_overridable_constants(&module, false);
 
         assert_tokens_eq!(
             quote! {
+                #[derive(Default)]
                 pub struct OverrideConstants {
                     pub b1: Option<bool>,
                     pub b2: Option<bool>,
@@ -262,7 +267,7 @@ mod tests {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = pipeline_overridable_constants(&module);
+        let actual = pipeline_overridable_constants(&module, false);
         assert_tokens_eq!(quote!(), actual);
     }
 }

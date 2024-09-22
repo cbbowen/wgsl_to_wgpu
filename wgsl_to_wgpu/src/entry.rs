@@ -54,7 +54,7 @@ pub fn entry_point_constants(module: &naga::Module) -> TokenStream {
     }
 }
 
-pub fn vertex_states(module: &naga::Module) -> TokenStream {
+pub fn vertex_states(module: &naga::Module, force_override_constants: bool) -> TokenStream {
     let vertex_entries: Vec<TokenStream> = module
         .entry_points
         .iter()
@@ -69,38 +69,56 @@ pub fn vertex_states(module: &naga::Module) -> TokenStream {
 
                 let vertex_inputs = vertex_entry_structs(entry_point, module);
                 let mut step_mode_params = vec![];
+                let step_modes = force_override_constants.then(|| quote!(step_modes));
                 let layout_expressions: Vec<TokenStream> = vertex_inputs
                     .iter()
-                    .map(|input| {
+                    .enumerate()
+                    .map(|(index, input)| {
                         let name = Ident::new(&input.name, Span::call_site());
-                        let step_mode = Ident::new(&input.name.to_snake(), Span::call_site());
-                        step_mode_params.push(quote!(#step_mode: wgpu::VertexStepMode));
+                        let step_mode = if let Some(step_modes) = &step_modes {
+                            quote!(#step_modes[#index])
+                        } else {
+                            let step_mode = Ident::new(&input.name.to_snake(), Span::call_site());
+                            step_mode_params.push(quote!(#step_mode: wgpu::VertexStepMode));
+                            quote!(#step_mode)
+                        };
                         quote!(#name::vertex_buffer_layout(#step_mode))
                     })
                     .collect();
+                let num_vertex_inputs = Literal::usize_unsuffixed(vertex_inputs.len());
 
-                let n = Literal::usize_unsuffixed(vertex_inputs.len());
+                let num_vertex_inputs_constant = Ident::new(
+                    &format!("NUM_VERTEX_INPUTS_{}", &entry_point.name.to_uppercase()),
+                    Span::call_site(),
+                );
 
-                let overrides = if !module.overrides.is_empty() {
+                if let Some(step_modes) = step_modes {
+                    step_mode_params.push(
+                        quote!(#step_modes: [wgpu::VertexStepMode; #num_vertex_inputs_constant]),
+                    )
+                }
+
+                let overrides = if !module.overrides.is_empty() || force_override_constants {
                     Some(quote!(overrides: &OverrideConstants))
                 } else {
                     None
                 };
 
-                let constants = if !module.overrides.is_empty() {
+                let constants = if !module.overrides.is_empty() || force_override_constants {
                     quote!(overrides.constants())
                 } else {
                     quote!(Default::default())
                 };
 
-                let params = if step_mode_params.is_empty() {
-                    quote!(#overrides)
-                } else {
+                let params = if !step_mode_params.is_empty() || force_override_constants {
                     quote!(#(#step_mode_params),*, #overrides)
+                } else {
+                    quote!(#overrides)
                 };
 
                 Some(quote! {
-                    pub fn #fn_name(#params) -> VertexEntry<#n> {
+                    pub const #num_vertex_inputs_constant: usize = #num_vertex_inputs;
+                    pub fn #fn_name(#params) -> VertexEntry<#num_vertex_inputs_constant> {
                         VertexEntry {
                             entry_point: #const_name,
                             buffers: [
@@ -204,7 +222,7 @@ fn vertex_input_structs(module: &naga::Module) -> Vec<TokenStream> {
     }).collect()
 }
 
-pub fn fragment_states(module: &naga::Module) -> TokenStream {
+pub fn fragment_states(module: &naga::Module, force_override_constants: bool) -> TokenStream {
     let entries: Vec<TokenStream> = module
         .entry_points
         .iter()
@@ -221,23 +239,28 @@ pub fn fragment_states(module: &naga::Module) -> TokenStream {
                 let target_count =
                     Literal::usize_unsuffixed(fragment_target_count(module, &entry_point.function));
 
-                let overrides = if !module.overrides.is_empty() {
+                let overrides = if !module.overrides.is_empty() || force_override_constants {
                     Some(quote!(overrides: &OverrideConstants))
                 } else {
                     None
                 };
 
-                let constants = if !module.overrides.is_empty() {
+                let constants = if !module.overrides.is_empty() || force_override_constants {
                     quote!(overrides.constants())
                 } else {
                     quote!(Default::default())
                 };
 
+                let target_count_constant = Ident::new(
+                    &format!("NUM_TARGETS_{}", &entry_point.name.to_uppercase()),
+                    Span::call_site(),
+                );
                 Some(quote! {
+                    pub const #target_count_constant: usize = #target_count;
                     pub fn #fn_name(
-                        targets: [Option<wgpu::ColorTargetState>; #target_count],
+                        targets: [Option<wgpu::ColorTargetState>; #target_count_constant],
                         #overrides
-                    ) -> FragmentEntry<#target_count> {
+                    ) -> FragmentEntry<#target_count_constant> {
                         FragmentEntry {
                             entry_point: #const_name,
                             targets,
@@ -301,7 +324,7 @@ mod test {
         };
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = vertex_states(&module);
+        let actual = vertex_states(&module, false);
 
         assert_tokens_eq!(quote!(), actual)
     }
@@ -329,7 +352,7 @@ mod test {
         };
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = fragment_states(&module);
+        let actual = fragment_states(&module, false);
 
         assert_tokens_eq!(
             quote! {
@@ -353,36 +376,40 @@ mod test {
                         },
                     }
                 }
+                pub const NUM_TARGETS_FS_MULTIPLE: usize = 2;
                 pub fn fs_multiple_entry(
-                    targets: [Option<wgpu::ColorTargetState>; 2]
-                ) -> FragmentEntry<2> {
+                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_MULTIPLE],
+                ) -> FragmentEntry<NUM_TARGETS_FS_MULTIPLE> {
                     FragmentEntry {
                         entry_point: ENTRY_FS_MULTIPLE,
                         targets,
                         constants: Default::default(),
                     }
                 }
+                pub const NUM_TARGETS_FS_SINGLE: usize = 1;
                 pub fn fs_single_entry(
-                    targets: [Option<wgpu::ColorTargetState>; 1]
-                ) -> FragmentEntry<1> {
+                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_SINGLE],
+                ) -> FragmentEntry<NUM_TARGETS_FS_SINGLE> {
                     FragmentEntry {
                         entry_point: ENTRY_FS_SINGLE,
                         targets,
                         constants: Default::default(),
                     }
                 }
+                pub const NUM_TARGETS_FS_SINGLE_BUILTIN: usize = 0;
                 pub fn fs_single_builtin_entry(
-                    targets: [Option<wgpu::ColorTargetState>; 0]
-                ) -> FragmentEntry<0> {
+                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_SINGLE_BUILTIN],
+                ) -> FragmentEntry<NUM_TARGETS_FS_SINGLE_BUILTIN> {
                     FragmentEntry {
                         entry_point: ENTRY_FS_SINGLE_BUILTIN,
                         targets,
                         constants: Default::default(),
                     }
                 }
+                pub const NUM_TARGETS_FS_EMPTY: usize = 0;
                 pub fn fs_empty_entry(
-                    targets: [Option<wgpu::ColorTargetState>; 0]
-                ) -> FragmentEntry<0> {
+                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_EMPTY],
+                ) -> FragmentEntry<NUM_TARGETS_FS_EMPTY> {
                     FragmentEntry {
                         entry_point: ENTRY_FS_EMPTY,
                         targets,
@@ -405,7 +432,7 @@ mod test {
         };
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = fragment_states(&module);
+        let actual = fragment_states(&module, false);
 
         assert_tokens_eq!(
             quote! {
@@ -429,10 +456,11 @@ mod test {
                         },
                     }
                 }
+                pub const NUM_TARGETS_FS_SINGLE: usize = 1;
                 pub fn fs_single_entry(
-                    targets: [Option<wgpu::ColorTargetState>; 1],
-                    overrides: &OverrideConstants
-                ) -> FragmentEntry<1> {
+                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_SINGLE],
+                    overrides: &OverrideConstants,
+                ) -> FragmentEntry<NUM_TARGETS_FS_SINGLE> {
                     FragmentEntry {
                         entry_point: ENTRY_FS_SINGLE,
                         targets,

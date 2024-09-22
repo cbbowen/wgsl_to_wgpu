@@ -15,6 +15,7 @@ pub struct Uniforms {
 pub struct PushConstants {
     pub color_matrix: glam::Mat4,
 }
+#[derive(Default)]
 pub struct OverrideConstants {
     pub force_black: bool,
     pub scale: Option<f32>,
@@ -211,10 +212,11 @@ pub fn vertex_state<'a, const N: usize>(
         },
     }
 }
+pub const NUM_VERTEX_INPUTS_VS_MAIN: usize = 1;
 pub fn vs_main_entry(
     vertex_input: wgpu::VertexStepMode,
     overrides: &OverrideConstants,
-) -> VertexEntry<1> {
+) -> VertexEntry<NUM_VERTEX_INPUTS_VS_MAIN> {
     VertexEntry {
         entry_point: ENTRY_VS_MAIN,
         buffers: [VertexInput::vertex_buffer_layout(vertex_input)],
@@ -241,10 +243,11 @@ pub fn fragment_state<'a, const N: usize>(
         },
     }
 }
+pub const NUM_TARGETS_FS_MAIN: usize = 1;
 pub fn fs_main_entry(
-    targets: [Option<wgpu::ColorTargetState>; 1],
+    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_MAIN],
     overrides: &OverrideConstants,
-) -> FragmentEntry<1> {
+) -> FragmentEntry<NUM_TARGETS_FS_MAIN> {
     FragmentEntry {
         entry_point: ENTRY_FS_MAIN,
         targets,

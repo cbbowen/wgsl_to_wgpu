@@ -1,3 +1,11 @@
+#[derive(Default)]
+pub struct OverrideConstants {}
+impl OverrideConstants {
+    pub fn constants(&self) -> std::collections::HashMap<String, f64> {
+        let entries = std::collections::HashMap::from([]);
+        entries
+    }
+}
 pub const ENTRY_FS_MAIN: &str = "fs_main";
 #[derive(Debug)]
 pub struct FragmentEntry<const N: usize> {
@@ -22,11 +30,12 @@ pub fn fragment_state<'a, const N: usize>(
 pub const NUM_TARGETS_FS_MAIN: usize = 0;
 pub fn fs_main_entry(
     targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_MAIN],
+    overrides: &OverrideConstants,
 ) -> FragmentEntry<NUM_TARGETS_FS_MAIN> {
     FragmentEntry {
         entry_point: ENTRY_FS_MAIN,
         targets,
-        constants: Default::default(),
+        constants: overrides.constants(),
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
