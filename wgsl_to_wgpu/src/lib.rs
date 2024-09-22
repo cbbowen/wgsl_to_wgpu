@@ -207,12 +207,24 @@ pub fn create_shader_module_embedded(
     create_shader_module_inner(wgsl_source, None, options)
 }
 
-fn create_shader_module_inner(
-    wgsl_source: &str,
-    wgsl_include_path: Option<&str>,
+pub fn create_shader_module_tokens(
+    module: &naga::Module,
     options: WriteOptions,
-) -> Result<String, CreateModuleError> {
-    let module = naga::front::wgsl::parse_str(wgsl_source).unwrap();
+) -> Result<TokenStream, CreateModuleError> {
+    let mut validator = naga::valid::Validator::new(
+        // TODO: We should probably make this part of the input options.
+        naga::valid::ValidationFlags::empty(),
+        // TODO: We should probably make this part of the input options.
+        naga::valid::Capabilities::all(),
+    );
+    let module_info = validator.validate(module).unwrap();
+    let wgsl_source = naga::back::wgsl::write_string(
+        module,
+        &module_info,
+        // Without this, Naga changes `let A: f32 = 0f;` to `const: A = 0f;` which it then doesn't think is valid.
+        naga::back::wgsl::WriterFlags::EXPLICIT_TYPES,
+    )
+    .unwrap();
 
     let bind_group_data = get_bind_group_data(&module, !options.non_filterable)?;
     let shader_stages = wgsl::shader_stages(&module);
@@ -228,9 +240,7 @@ fn create_shader_module_inner(
     let fragment_states = fragment_states(&module, options.force_override_constants);
 
     // Use a string literal if no include path is provided.
-    let included_source = wgsl_include_path
-        .map(|p| quote!(include_str!(#p)))
-        .unwrap_or_else(|| quote!(#wgsl_source));
+    let included_source = quote!(#wgsl_source);
 
     let create_shader_module = quote! {
         pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
@@ -267,7 +277,7 @@ fn create_shader_module_inner(
     let override_constants =
         pipeline_overridable_constants(&module, options.force_override_constants);
 
-    let output = quote! {
+    Ok(quote! {
         #structs
         #(#consts)*
         #override_constants
@@ -279,7 +289,17 @@ fn create_shader_module_inner(
         #fragment_states
         #create_shader_module
         #create_pipeline_layout
-    };
+    })
+}
+
+fn create_shader_module_inner(
+    wgsl_source: &str,
+    wgsl_include_path: Option<&str>,
+    options: WriteOptions,
+) -> Result<String, CreateModuleError> {
+    let module = naga::front::wgsl::parse_str(wgsl_source).unwrap();
+
+    let output = create_shader_module_tokens(&module, options)?;
 
     if options.rustfmt {
         Ok(pretty_print_rustfmt(output))
@@ -503,7 +523,9 @@ mod test {
                     }
                 }
                 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
-                    let source = std::borrow::Cow::Borrowed(include_str!("shader.wgsl"));
+                    let source = std::borrow::Cow::Borrowed(
+                        "var<push_constant> consts: vec4<f32>;\n\n@fragment \nfn fs_main() {\n    return;\n}\n",
+                    );
                     device
                         .create_shader_module(wgpu::ShaderModuleDescriptor {
                             label: None,
@@ -581,7 +603,7 @@ mod test {
             @group(3) @binding(0) var<uniform> d: mat4x4<f32>;
 
             @vertex
-            fn vs_main() {}
+            fn vs_main() -> @builtin(position) vec4<f32> {}
 
             @fragment
             fn fs_main() {}

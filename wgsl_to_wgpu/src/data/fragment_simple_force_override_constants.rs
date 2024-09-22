@@ -39,7 +39,7 @@ pub fn fs_main_entry(
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
-    let source = std::borrow::Cow::Borrowed("@fragment\nfn fs_main() {}\n");
+    let source = std::borrow::Cow::Borrowed("@fragment \nfn fs_main() {\n    return;\n}\n");
     device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(source),

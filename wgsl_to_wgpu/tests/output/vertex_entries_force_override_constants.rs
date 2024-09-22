@@ -142,7 +142,7 @@ pub fn vs_main_multiple_entry(
     }
 }
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
-    let source = std::borrow::Cow::Borrowed(include_str!("shader.wgsl"));
+    let source = std :: borrow :: Cow :: Borrowed ("struct Input0_ {\n    @location(0) in0_: vec4<f32>,\n    @location(1) in1_: vec4<f32>,\n    @location(2) in2_: vec4<f32>,\n}\n\nstruct Input1_ {\n    @location(3) in3_: vec4<f32>,\n    @location(4) in4_: vec4<f32>,\n    @builtin(vertex_index) index: u32,\n    @location(5) in5_: vec4<f32>,\n    @location(6) @interpolate(flat) in6_: vec4<u32>,\n}\n\n@vertex \nfn vs_main_none() -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n\n@vertex \nfn vs_main_single(in0_: Input0_) -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n\n@vertex \nfn vs_main_multiple(in0_1: Input0_, in1_: Input1_, @builtin(instance_index) in2_: u32, @location(7) in3_: vec4<f32>) -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n") ;
     device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(source),

@@ -106,7 +106,7 @@ pub mod compute {
 }
 pub const ENTRY_MAIN: &str = "main";
 pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
-    let source = std::borrow::Cow::Borrowed(include_str!("compute_shader.wgsl"));
+    let source = std :: borrow :: Cow :: Borrowed ("struct Uniforms {\n    color_rgb: vec3<f32>,\n}\n\n@group(0) @binding(0) \nvar<storage, read_write> uniforms: Uniforms;\n\n@compute @workgroup_size(1, 1, 1) \nfn main(@builtin(global_invocation_id) global_id: vec3<u32>) {\n    if (global_id.x == 0u) {\n        uniforms.color_rgb = vec3(1f);\n        return;\n    } else {\n        return;\n    }\n}\n") ;
     device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(source),
