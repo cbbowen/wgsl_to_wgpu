@@ -53,21 +53,25 @@ pub fn buffer_binding_type(storage: naga::AddressSpace) -> TokenStream {
     }
 }
 
-pub fn sampler_binding_type(comparison: bool, filterable: bool) -> TokenStream {
-    if comparison {
-        quote!(wgpu::SamplerBindingType::Comparison)
-    } else if filterable {
-        quote!(wgpu::SamplerBindingType::Filtering)
-    } else {
-        quote!(wgpu::SamplerBindingType::NonFiltering)
+pub fn require_ordered_float(kind: naga::ScalarKind) -> bool {
+    match kind {
+        naga::ScalarKind::Float => true,
+        naga::ScalarKind::AbstractFloat => true,
+        _ => false,
     }
 }
 
 pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTypes) -> TokenStream {
     match &ty.inner {
-        naga::TypeInner::Scalar(scalar) => rust_scalar_type(scalar),
+        naga::TypeInner::Scalar(scalar) => match format {
+            MatrixVectorTypes::Rust { ordered: true } if require_ordered_float(scalar.kind) => {
+                let ty = rust_scalar_type(scalar);
+                quote!(ordered_float::OrderedFloat<#ty>)
+            },
+            _ => rust_scalar_type(scalar)
+        },
         naga::TypeInner::Vector { size, scalar } => match format {
-            MatrixVectorTypes::Rust => rust_vector_type(*size, scalar.kind, scalar.width),
+            MatrixVectorTypes::Rust { .. } => rust_vector_type(*size, scalar.kind, scalar.width),
             MatrixVectorTypes::Glam => glam_vector_type(*size, scalar.kind, scalar.width),
             MatrixVectorTypes::Nalgebra => nalgebra_vector_type(*size, scalar.kind, scalar.width),
         },
@@ -76,7 +80,7 @@ pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTyp
             rows,
             scalar,
         } => match format {
-            MatrixVectorTypes::Rust => rust_matrix_type(*rows, *columns, scalar.width),
+            MatrixVectorTypes::Rust { .. } => rust_matrix_type(*rows, *columns, scalar.width),
             MatrixVectorTypes::Glam => glam_matrix_type(*rows, *columns, scalar.width),
             MatrixVectorTypes::Nalgebra => nalgebra_matrix_type(*rows, *columns, scalar.width),
         },
@@ -231,6 +235,7 @@ pub fn vertex_format(ty: &naga::Type) -> wgpu::VertexFormat {
 #[derive(PartialEq, Eq)]
 pub struct VertexInput {
     pub name: String,
+    pub type_name: Ident,
     pub fields: Vec<(u32, StructMember)>,
 }
 
@@ -245,8 +250,8 @@ pub fn get_vertex_input_structs(module: &naga::Module) -> Vec<VertexInput> {
         .collect();
 
     // Remove structs that are used more than once.
-    structs.sort_by_key(|s| s.name.clone());
-    structs.dedup_by_key(|s| s.name.clone());
+    structs.sort_by_key(|s| s.type_name.to_string());
+    structs.dedup_by_key(|s| s.type_name.to_string());
 
     structs
 }
@@ -265,7 +270,8 @@ pub fn vertex_entry_structs(
             match &arg_type.inner {
                 naga::TypeInner::Struct { members, span: _ } => {
                     let input = VertexInput {
-                        name: arg_type.name.as_ref().unwrap().clone(),
+                        name: argument.name.as_ref().unwrap().clone(),
+                        type_name: Ident::new(arg_type.name.as_ref().unwrap(), Span::call_site()),
                         fields: members
                             .iter()
                             .filter_map(|member| {

@@ -15,16 +15,16 @@ mod shader;
 struct State {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
-    device: wgpu::Device,
+    device: Arc<wgpu::Device>,
     queue: wgpu::Queue,
     size: winit::dpi::PhysicalSize<u32>,
     config: wgpu::SurfaceConfiguration,
-    pipeline: wgpu::RenderPipeline,
-    bind_group0: shader::bind_groups::BindGroup0,
-    bind_group1: shader::bind_groups::BindGroup1,
+    pipeline: Arc<wgpu::RenderPipeline>,
+    bind_group0: shader::BindGroup0,
+    bind_group1: shader::BindGroup1,
     vertex_buffer: wgpu::Buffer,
-    compute_pipeline: wgpu::ComputePipeline,
-    compute_bind_group: compute_shader::bind_groups::BindGroup0,
+    compute_pipeline: Arc<wgpu::ComputePipeline>,
+    compute_bind_group: compute_shader::BindGroup0,
 }
 
 impl State {
@@ -62,6 +62,7 @@ impl State {
             )
             .await
             .unwrap();
+        let device = Arc::new(device);
 
         let size = window.inner_size();
         let caps = surface.get_capabilities(&adapter);
@@ -72,8 +73,12 @@ impl State {
         surface.configure(&device, &config);
 
         // Use the generated bindings to create the pipeline.
-        let module = shader::create_shader_module(&device);
-        let render_pipeline_layout = shader::create_pipeline_layout(&device);
+        let module = shader::Shader::new(device.clone());
+        let render_pipeline_layout = module
+            .pipeline_layout()
+            .color_texture_filterable(true)
+            .color_sampler_filtering(wgpu::SamplerBindingType::Filtering)
+            .get();
 
         // Set overrideable constant values or use shader defaults if None.
         let overrides = shader::OverrideConstants {
@@ -81,23 +86,14 @@ impl State {
             scale: None,
         };
 
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: shader::vertex_state(
-                &module,
-                &shader::vs_main_entry(wgpu::VertexStepMode::Vertex, &overrides),
-            ),
-            fragment: Some(shader::fragment_state(
-                &module,
-                &shader::fs_main_entry([Some(surface_format.into())], &overrides),
-            )),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: Default::default(),
-        });
+        // let pipeline = render_pipeline_layout.vs_main_pipeline(in_step_mode, overrides, primitive, depth_stencil, multisample, fragment, multiview, cache)
+        let pipeline = render_pipeline_layout
+            .vs_main_pipeline(wgpu::VertexStepMode::Vertex)
+            .fragment(shader::FragmentEntry::fs_main {
+                targets: [Some(surface_format.into())],
+            })
+            .overrides(overrides)
+            .get();
 
         // Create a gradient texture.
         let texture = device.create_texture_with_data(
@@ -145,13 +141,13 @@ impl State {
         });
 
         // Use the generated types to ensure the correct bind group is assigned to each slot.
-        let bind_group0 = shader::bind_groups::BindGroup0::from_bindings(
-            &device,
-            shader::bind_groups::BindGroupLayout0 {
-                color_texture: &view,
-                color_sampler: &sampler,
-            },
-        );
+        let bind_group0 = render_pipeline_layout
+            .bind_group_layouts()
+            .0
+            .bind_group()
+            .color_texture(&view)
+            .color_sampler(&sampler)
+            .create();
 
         // wgsl_to_wgpu will generate alignment assertion checks when using bytemuck.
         // It's strongly recommended to use encase for uniform and storage buffers.
@@ -171,12 +167,12 @@ impl State {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::STORAGE,
         });
 
-        let bind_group1 = shader::bind_groups::BindGroup1::from_bindings(
-            &device,
-            shader::bind_groups::BindGroupLayout1 {
-                uniforms: uniforms_buffer.as_entire_buffer_binding(),
-            },
-        );
+        let bind_group1 = render_pipeline_layout
+            .bind_group_layouts()
+            .1
+            .bind_group()
+            .uniforms(uniforms_buffer.as_entire_buffer_binding())
+            .create();
 
         // Initialize the vertex buffer based on the expected input structs.
         // For storage buffer compatibility, consider using encase instead.
@@ -196,16 +192,16 @@ impl State {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
-        let compute_pipeline = compute_shader::compute::create_main_pipeline(&device);
+        let compute_shader = compute_shader::Shader::new(device.clone());
+        let compute_layout = compute_shader.pipeline_layout().get();
+        let compute_pipeline = compute_layout.main_pipeline().get();
 
         // Uniform and storage buffers both use the same memory layout for structs.
         // Applications that create offsets into storage buffers should use encase::StorageBuffer.
-        let compute_bind_group = compute_shader::bind_groups::BindGroup0::from_bindings(
-            &device,
-            compute_shader::bind_groups::BindGroupLayout0 {
-                uniforms: uniforms_buffer.as_entire_buffer_binding(),
-            },
-        );
+        let compute_bind_group = compute_layout
+            .bind_group_layouts()
+            .0
+            .bind_group().uniforms(uniforms_buffer.as_entire_buffer_binding()).create();
 
         Self {
             window,
@@ -249,7 +245,7 @@ impl State {
             timestamp_writes: None,
         });
         compute_pass.set_pipeline(&self.compute_pipeline);
-        compute_shader::set_bind_groups(&mut compute_pass, &self.compute_bind_group);
+        self.compute_bind_group.set_compute(&mut compute_pass);
         compute_pass.dispatch_workgroups(1, 1, 1);
         drop(compute_pass);
 
@@ -284,7 +280,8 @@ impl State {
         );
 
         // Use this function to ensure all bind groups are set.
-        crate::shader::set_bind_groups(&mut render_pass, &self.bind_group0, &self.bind_group1);
+        render_pass.set_bind_group(0, &self.bind_group0, &[]);
+        render_pass.set_bind_group(1, &self.bind_group1, &[]);
 
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.draw(0..3, 0..1);

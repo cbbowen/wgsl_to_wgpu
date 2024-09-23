@@ -1,5 +1,3 @@
-use case::CaseExt;
-use naga::ShaderStage;
 use naga::{Function, Module};
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::quote;
@@ -33,135 +31,57 @@ pub fn fragment_target_count(module: &Module, f: &Function) -> usize {
     }
 }
 
-pub fn entry_point_constants(module: &naga::Module) -> TokenStream {
-    let entry_points: Vec<TokenStream> = module
-        .entry_points
-        .iter()
-        .map(|entry_point| {
-            let entry_name = Literal::string(&entry_point.name);
-            let const_name = Ident::new(
-                &format!("ENTRY_{}", &entry_point.name.to_uppercase()),
-                Span::call_site(),
-            );
-            quote! {
-                pub const #const_name: &str = #entry_name;
-            }
-        })
-        .collect();
-
-    quote! {
-        #(#entry_points)*
-    }
+pub fn vertex_inputs(
+    entry_point: &naga::EntryPoint,
+    module: &naga::Module,
+) -> Vec<(String, Ident)> {
+    let vertex_inputs = vertex_entry_structs(entry_point, module);
+    vertex_inputs
+        .into_iter()
+        .map(|input| (input.name, input.type_name))
+        .collect()
 }
 
-pub fn vertex_states(module: &naga::Module, force_override_constants: bool) -> TokenStream {
-    let vertex_entries: Vec<TokenStream> = module
-        .entry_points
-        .iter()
-        .filter_map(|entry_point| match &entry_point.stage {
-            ShaderStage::Vertex => {
-                let fn_name =
-                    Ident::new(&format!("{}_entry", &entry_point.name), Span::call_site());
-                let const_name = Ident::new(
-                    &format!("ENTRY_{}", &entry_point.name.to_uppercase()),
-                    Span::call_site(),
-                );
-
-                let vertex_inputs = vertex_entry_structs(entry_point, module);
-                let mut step_mode_params = vec![];
-                let step_modes = force_override_constants.then(|| quote!(step_modes));
-                let layout_expressions: Vec<TokenStream> = vertex_inputs
-                    .iter()
-                    .enumerate()
-                    .map(|(index, input)| {
-                        let name = Ident::new(&input.name, Span::call_site());
-                        let step_mode = if let Some(step_modes) = &step_modes {
-                            quote!(#step_modes[#index])
-                        } else {
-                            let step_mode = Ident::new(&input.name.to_snake(), Span::call_site());
-                            step_mode_params.push(quote!(#step_mode: wgpu::VertexStepMode));
-                            quote!(#step_mode)
-                        };
-                        quote!(#name::vertex_buffer_layout(#step_mode))
-                    })
-                    .collect();
-                let num_vertex_inputs = Literal::usize_unsuffixed(vertex_inputs.len());
-
-                let num_vertex_inputs_constant = Ident::new(
-                    &format!("NUM_VERTEX_INPUTS_{}", &entry_point.name.to_uppercase()),
-                    Span::call_site(),
-                );
-
-                if let Some(step_modes) = step_modes {
-                    step_mode_params.push(
-                        quote!(#step_modes: [wgpu::VertexStepMode; #num_vertex_inputs_constant]),
-                    )
-                }
-
-                let overrides = if !module.overrides.is_empty() || force_override_constants {
-                    Some(quote!(overrides: &OverrideConstants))
-                } else {
-                    None
-                };
-
-                let constants = if !module.overrides.is_empty() || force_override_constants {
-                    quote!(overrides.constants())
-                } else {
-                    quote!(Default::default())
-                };
-
-                let params = if !step_mode_params.is_empty() || force_override_constants {
-                    quote!(#(#step_mode_params),*, #overrides)
-                } else {
-                    quote!(#overrides)
-                };
-
-                Some(quote! {
-                    pub const #num_vertex_inputs_constant: usize = #num_vertex_inputs;
-                    pub fn #fn_name(#params) -> VertexEntry<#num_vertex_inputs_constant> {
-                        VertexEntry {
-                            entry_point: #const_name,
-                            buffers: [
-                                #(#layout_expressions),*
-                            ],
-                            constants: #constants
-                        }
-                    }
-                })
-            }
-            _ => None,
-        })
-        .collect();
-
-    // Don't generate unused code.
-    if vertex_entries.is_empty() {
-        quote!()
-    } else {
-        quote! {
-            #[derive(Debug)]
-            pub struct VertexEntry<const N: usize> {
-                pub entry_point: &'static str,
-                pub buffers: [wgpu::VertexBufferLayout<'static>; N],
-                pub constants: std::collections::HashMap<String, f64>,
-            }
-
-            pub fn vertex_state<'a, const N: usize>(
-                module: &'a wgpu::ShaderModule,
-                entry: &'a VertexEntry<N>,
-            ) -> wgpu::VertexState<'a> {
-                wgpu::VertexState {
-                    module,
-                    entry_point: entry.entry_point,
-                    buffers: &entry.buffers,
-                    compilation_options: wgpu::PipelineCompilationOptions {
-                        constants: &entry.constants,
-                        ..Default::default()
+pub fn entry_point_constants(module: &naga::Module) -> TokenStream {
+    let fragment_state = {
+        let (variants, entries): (Vec<TokenStream>, Vec<TokenStream>) = module
+            .entry_points
+            .iter()
+            .filter(|e| e.stage == naga::ShaderStage::Fragment)
+            .map(|e| {
+                let name = e.name.as_str();
+                let variant_name = Ident::new(name, Span::call_site());
+                let num_targets = fragment_target_count(module, &e.function);
+                (
+                    quote! {#variant_name {
+                        targets: [Option<wgpu::ColorTargetState>; #num_targets],
+                    }},
+                    quote! {
+                        Self::#variant_name { targets } => (#name, targets)
                     },
+                )
+            })
+            .unzip();
+
+        quote! {
+            #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+            pub enum FragmentEntry {
+                #(#variants),*
+            }
+            impl FragmentEntry {
+                pub fn entry_point_and_targets(&self) -> (&'static str, &[Option<wgpu::ColorTargetState>]) {
+                    match self {
+                        #(#entries,)*
+                        _ => unreachable!(),
+                    }
                 }
             }
-
-            #(#vertex_entries)*
         }
+    };
+
+    quote! {
+        // #vertex_state
+        #fragment_state
     }
 }
 
@@ -173,7 +93,7 @@ pub fn vertex_struct_methods(module: &naga::Module) -> TokenStream {
 fn vertex_input_structs(module: &naga::Module) -> Vec<TokenStream> {
     let vertex_inputs = crate::wgsl::get_vertex_input_structs(module);
     vertex_inputs.iter().map(|input|  {
-        let name = Ident::new(&input.name, Span::call_site());
+        let name = &input.type_name;
 
         let count = Literal::usize_unsuffixed(input.fields.len());
         let attributes: Vec<_> = input
@@ -222,253 +142,10 @@ fn vertex_input_structs(module: &naga::Module) -> Vec<TokenStream> {
     }).collect()
 }
 
-pub fn fragment_states(module: &naga::Module, force_override_constants: bool) -> TokenStream {
-    let entries: Vec<TokenStream> = module
-        .entry_points
-        .iter()
-        .filter_map(|entry_point| match &entry_point.stage {
-            ShaderStage::Fragment => {
-                let fn_name =
-                    Ident::new(&format!("{}_entry", &entry_point.name), Span::call_site());
-
-                let const_name = Ident::new(
-                    &format!("ENTRY_{}", &entry_point.name.to_uppercase()),
-                    Span::call_site(),
-                );
-
-                let target_count =
-                    Literal::usize_unsuffixed(fragment_target_count(module, &entry_point.function));
-
-                let overrides = if !module.overrides.is_empty() || force_override_constants {
-                    Some(quote!(overrides: &OverrideConstants))
-                } else {
-                    None
-                };
-
-                let constants = if !module.overrides.is_empty() || force_override_constants {
-                    quote!(overrides.constants())
-                } else {
-                    quote!(Default::default())
-                };
-
-                let target_count_constant = Ident::new(
-                    &format!("NUM_TARGETS_{}", &entry_point.name.to_uppercase()),
-                    Span::call_site(),
-                );
-                Some(quote! {
-                    pub const #target_count_constant: usize = #target_count;
-                    pub fn #fn_name(
-                        targets: [Option<wgpu::ColorTargetState>; #target_count_constant],
-                        #overrides
-                    ) -> FragmentEntry<#target_count_constant> {
-                        FragmentEntry {
-                            entry_point: #const_name,
-                            targets,
-                            constants: #constants
-                        }
-                    }
-                })
-            }
-            _ => None,
-        })
-        .collect();
-
-    // Don't generate unused code.
-    if entries.is_empty() {
-        quote!()
-    } else {
-        quote! {
-            #[derive(Debug)]
-            pub struct FragmentEntry<const N: usize> {
-                pub entry_point: &'static str,
-                pub targets: [Option<wgpu::ColorTargetState>; N],
-                pub constants: std::collections::HashMap<String, f64>,
-            }
-
-            pub fn fragment_state<'a, const N: usize>(
-                module: &'a wgpu::ShaderModule,
-                entry: &'a FragmentEntry<N>,
-            ) -> wgpu::FragmentState<'a> {
-                wgpu::FragmentState {
-                    module,
-                    entry_point: entry.entry_point,
-                    targets: &entry.targets,
-                    compilation_options: wgpu::PipelineCompilationOptions {
-                        constants: &entry.constants,
-                        ..Default::default()
-                    },
-                }
-            }
-
-            #(#entries)*
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use super::*;
+    
 
-    use crate::assert_tokens_eq;
-    use indoc::indoc;
-
-    #[test]
-    fn write_vertex_states_no_entries() {
-        let source = indoc! {r#"
-            struct Input {
-                @location(0) position: vec4<f32>,
-            };
-            @fragment
-            fn main(in: Input) {}
-        "#
-        };
-
-        let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = vertex_states(&module, false);
-
-        assert_tokens_eq!(quote!(), actual)
-    }
-
-    #[test]
-    fn write_fragment_states_multiple_entries() {
-        let source = indoc! {r#"
-            struct Output {
-                @location(0) col0: vec4<f32>,
-                @builtin(frag_depth) depth: f32,
-                @location(1) col1: vec4<f32>,
-            };
-            @fragment
-            fn fs_multiple() -> Output {}
-
-            @fragment
-            fn fs_single() -> @location(0) vec4<f32> {}
-
-            @fragment
-            fn fs_single_builtin() -> @builtin(frag_depth) f32 {}
-
-            @fragment
-            fn fs_empty() {}
-        "#
-        };
-
-        let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = fragment_states(&module, false);
-
-        assert_tokens_eq!(
-            quote! {
-                #[derive(Debug)]
-                pub struct FragmentEntry<const N: usize> {
-                    pub entry_point: &'static str,
-                    pub targets: [Option<wgpu::ColorTargetState>; N],
-                    pub constants: std::collections::HashMap<String, f64>,
-                }
-                pub fn fragment_state<'a, const N: usize>(
-                    module: &'a wgpu::ShaderModule,
-                    entry: &'a FragmentEntry<N>,
-                ) -> wgpu::FragmentState<'a> {
-                    wgpu::FragmentState {
-                        module,
-                        entry_point: entry.entry_point,
-                        targets: &entry.targets,
-                        compilation_options: wgpu::PipelineCompilationOptions {
-                            constants: &entry.constants,
-                            ..Default::default()
-                        },
-                    }
-                }
-                pub const NUM_TARGETS_FS_MULTIPLE: usize = 2;
-                pub fn fs_multiple_entry(
-                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_MULTIPLE],
-                ) -> FragmentEntry<NUM_TARGETS_FS_MULTIPLE> {
-                    FragmentEntry {
-                        entry_point: ENTRY_FS_MULTIPLE,
-                        targets,
-                        constants: Default::default(),
-                    }
-                }
-                pub const NUM_TARGETS_FS_SINGLE: usize = 1;
-                pub fn fs_single_entry(
-                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_SINGLE],
-                ) -> FragmentEntry<NUM_TARGETS_FS_SINGLE> {
-                    FragmentEntry {
-                        entry_point: ENTRY_FS_SINGLE,
-                        targets,
-                        constants: Default::default(),
-                    }
-                }
-                pub const NUM_TARGETS_FS_SINGLE_BUILTIN: usize = 0;
-                pub fn fs_single_builtin_entry(
-                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_SINGLE_BUILTIN],
-                ) -> FragmentEntry<NUM_TARGETS_FS_SINGLE_BUILTIN> {
-                    FragmentEntry {
-                        entry_point: ENTRY_FS_SINGLE_BUILTIN,
-                        targets,
-                        constants: Default::default(),
-                    }
-                }
-                pub const NUM_TARGETS_FS_EMPTY: usize = 0;
-                pub fn fs_empty_entry(
-                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_EMPTY],
-                ) -> FragmentEntry<NUM_TARGETS_FS_EMPTY> {
-                    FragmentEntry {
-                        entry_point: ENTRY_FS_EMPTY,
-                        targets,
-                        constants: Default::default(),
-                    }
-                }
-            },
-            actual
-        )
-    }
-
-    #[test]
-    fn write_fragment_states_single_entry() {
-        let source = indoc! {r#"
-            override test: bool = true;
-
-            @fragment
-            fn fs_single() -> @location(0) vec4<f32> {}
-        "#
-        };
-
-        let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = fragment_states(&module, false);
-
-        assert_tokens_eq!(
-            quote! {
-                #[derive(Debug)]
-                pub struct FragmentEntry<const N: usize> {
-                    pub entry_point: &'static str,
-                    pub targets: [Option<wgpu::ColorTargetState>; N],
-                    pub constants: std::collections::HashMap<String, f64>,
-                }
-                pub fn fragment_state<'a, const N: usize>(
-                    module: &'a wgpu::ShaderModule,
-                    entry: &'a FragmentEntry<N>,
-                ) -> wgpu::FragmentState<'a> {
-                    wgpu::FragmentState {
-                        module,
-                        entry_point: entry.entry_point,
-                        targets: &entry.targets,
-                        compilation_options: wgpu::PipelineCompilationOptions {
-                            constants: &entry.constants,
-                            ..Default::default()
-                        },
-                    }
-                }
-                pub const NUM_TARGETS_FS_SINGLE: usize = 1;
-                pub fn fs_single_entry(
-                    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_SINGLE],
-                    overrides: &OverrideConstants,
-                ) -> FragmentEntry<NUM_TARGETS_FS_SINGLE> {
-                    FragmentEntry {
-                        entry_point: ENTRY_FS_SINGLE,
-                        targets,
-                        constants: overrides.constants(),
-                    }
-                }
-            },
-            actual
-        )
-    }
+    
+    
 }

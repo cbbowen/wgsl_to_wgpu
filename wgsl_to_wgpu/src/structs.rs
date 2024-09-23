@@ -300,7 +300,7 @@ mod tests {
                 derive_bytemuck_host_shareable: true,
                 derive_encase_host_shareable: true,
                 derive_serde: false,
-                matrix_vector_types: MatrixVectorTypes::Rust,
+                matrix_vector_types: MatrixVectorTypes::Rust { ordered: false },
                 rustfmt: true,
                 ..Default::default()
             },
@@ -317,7 +317,7 @@ mod tests {
                 derive_bytemuck_host_shareable: true,
                 derive_encase_host_shareable: true,
                 derive_serde: true,
-                matrix_vector_types: MatrixVectorTypes::Rust,
+                matrix_vector_types: MatrixVectorTypes::Rust { ordered: false },
                 rustfmt: true,
                 ..Default::default()
             },
@@ -357,7 +357,7 @@ mod tests {
                 derive_bytemuck_host_shareable: false,
                 derive_encase_host_shareable: false,
                 derive_serde: false,
-                matrix_vector_types: MatrixVectorTypes::Rust,
+                matrix_vector_types: MatrixVectorTypes::Rust { ordered: false },
                 rustfmt: true,
                 ..Default::default()
             },
@@ -403,7 +403,7 @@ mod tests {
                 derive_bytemuck_host_shareable: true,
                 derive_encase_host_shareable: false,
                 derive_serde: false,
-                matrix_vector_types: MatrixVectorTypes::Rust,
+                matrix_vector_types: MatrixVectorTypes::Rust { ordered: false },
                 rustfmt: true,
                 ..Default::default()
             },
@@ -434,7 +434,7 @@ mod tests {
                 derive_bytemuck_host_shareable: true,
                 derive_encase_host_shareable: false,
                 derive_serde: false,
-                matrix_vector_types: MatrixVectorTypes::Rust,
+                matrix_vector_types: MatrixVectorTypes::Rust { ordered: false },
                 rustfmt: true,
                 ..Default::default()
             },

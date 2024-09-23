@@ -13,7 +13,7 @@ edition = "2021"
 # naga = { version = "22.0.0", features = ["wgsl-in", "wgsl-out"] }
 naga = { git = "https://github.com/cbbowen/wgpu.git", features = ["wgsl-in", "wgsl-out"] }
 wgpu-types = "22.0.0"
-syn = "2.0"
+syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
 prettyplease = "0.2"

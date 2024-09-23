@@ -15,164 +15,163 @@ pub struct Uniforms {
 pub struct PushConstants {
     pub color_matrix: glam::Mat4,
 }
-#[derive(Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OverrideConstants {
     pub force_black: bool,
-    pub scale: Option<f32>,
+    pub scale: Option<ordered_float::OrderedFloat<f32>>,
 }
 impl OverrideConstants {
     pub fn constants(&self) -> std::collections::HashMap<String, f64> {
-        let mut entries = std::collections::HashMap::from([(
-            "force_black".to_owned(),
-            if self.force_black { 1.0 } else { 0.0 },
-        )]);
-        if let Some(value) = self.scale {
-            entries.insert("scale".to_owned(), value as f64);
-        }
-        entries
+        [
+            Some((
+                "force_black".to_owned(),
+                if self.force_black { 1f64 } else { 0f64 },
+            )),
+            self.scale
+                .map(|v| ("scale".to_owned(), v.into_inner() as f64)),
+        ]
+        .into_iter()
+        .filter_map(|a| a)
+        .collect()
     }
 }
-pub mod bind_groups {
-    #[derive(Debug)]
-    pub struct BindGroup0(wgpu::BindGroup);
-    #[derive(Debug)]
-    pub struct BindGroupLayout0<'a> {
-        pub color_texture: &'a wgpu::TextureView,
-        pub color_sampler: &'a wgpu::Sampler,
+#[derive(Debug)]
+pub struct BindGroupLayout0 {
+    device: std::sync::Arc<wgpu::Device>,
+    layout: wgpu::BindGroupLayout,
+}
+impl std::ops::Deref for BindGroupLayout0 {
+    type Target = wgpu::BindGroupLayout;
+    fn deref(&self) -> &Self::Target {
+        &self.layout
     }
-    const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
-        label: Some("LayoutDescriptor0"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
+}
+pub struct BindGroup0(wgpu::BindGroup);
+impl std::ops::Deref for BindGroup0 {
+    type Target = wgpu::BindGroup;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl BindGroup0 {
+    pub fn set(&self, pass: &mut wgpu::RenderPass) {
+        pass.set_bind_group(0u32, self, &[]);
+    }
+    pub fn set_compute(&self, pass: &mut wgpu::ComputePass) {
+        pass.set_bind_group(0u32, self, &[]);
+    }
+}
+#[bon::bon]
+impl BindGroupLayout0 {
+    pub fn new(
+        device: std::sync::Arc<wgpu::Device>,
+        color_texture_filterable: bool,
+        color_sampler_filtering: wgpu::SamplerBindingType,
+    ) -> Self {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float {
+                            filterable: color_texture_filterable,
+                        },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(color_sampler_filtering),
+                    count: None,
+                },
+            ],
+        });
+        Self { device, layout }
+    }
+    # [builder (finish_fn = create)]
+    pub fn bind_group(
+        &self,
+        color_texture: &wgpu::TextureView,
+        color_sampler: &wgpu::Sampler,
+    ) -> BindGroup0 {
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(color_texture),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(color_sampler),
+                },
+            ],
+            label: None,
+        });
+        BindGroup0(bind_group)
+    }
+}
+#[derive(Debug)]
+pub struct BindGroupLayout1 {
+    device: std::sync::Arc<wgpu::Device>,
+    layout: wgpu::BindGroupLayout,
+}
+impl std::ops::Deref for BindGroupLayout1 {
+    type Target = wgpu::BindGroupLayout;
+    fn deref(&self) -> &Self::Target {
+        &self.layout
+    }
+}
+pub struct BindGroup1(wgpu::BindGroup);
+impl std::ops::Deref for BindGroup1 {
+    type Target = wgpu::BindGroup;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl BindGroup1 {
+    pub fn set(&self, pass: &mut wgpu::RenderPass) {
+        pass.set_bind_group(1u32, self, &[]);
+    }
+    pub fn set_compute(&self, pass: &mut wgpu::ComputePass) {
+        pass.set_bind_group(1u32, self, &[]);
+    }
+}
+#[bon::bon]
+impl BindGroupLayout1 {
+    pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
                 },
                 count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-        ],
-    };
-    impl BindGroup0 {
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR0)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout0) -> Self {
-            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR0);
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(bindings.color_texture),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(bindings.color_sampler),
-                    },
-                ],
-                label: Some("BindGroup0"),
-            });
-            Self(bind_group)
-        }
-        pub fn set<P: SetBindGroup>(&self, pass: &mut P) {
-            pass.set_bind_group(0, &self.0, &[]);
-        }
+            }],
+        });
+        Self { device, layout }
     }
-    #[derive(Debug)]
-    pub struct BindGroup1(wgpu::BindGroup);
-    #[derive(Debug)]
-    pub struct BindGroupLayout1<'a> {
-        pub uniforms: wgpu::BufferBinding<'a>,
+    # [builder (finish_fn = create)]
+    pub fn bind_group(&self, uniforms: wgpu::BufferBinding<'_>) -> BindGroup1 {
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(uniforms),
+            }],
+            label: None,
+        });
+        BindGroup1(bind_group)
     }
-    const LAYOUT_DESCRIPTOR1: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
-        label: Some("LayoutDescriptor1"),
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-    };
-    impl BindGroup1 {
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR1)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout1) -> Self {
-            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR1);
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(bindings.uniforms),
-                }],
-                label: Some("BindGroup1"),
-            });
-            Self(bind_group)
-        }
-        pub fn set<P: SetBindGroup>(&self, pass: &mut P) {
-            pass.set_bind_group(1, &self.0, &[]);
-        }
-    }
-    #[derive(Debug, Copy, Clone)]
-    pub struct BindGroups<'a> {
-        pub bind_group0: &'a BindGroup0,
-        pub bind_group1: &'a BindGroup1,
-    }
-    impl<'a> BindGroups<'a> {
-        pub fn set<P: SetBindGroup>(&self, pass: &mut P) {
-            self.bind_group0.set(pass);
-            self.bind_group1.set(pass);
-        }
-    }
-    pub trait SetBindGroup {
-        fn set_bind_group(
-            &mut self,
-            index: u32,
-            bind_group: &wgpu::BindGroup,
-            offsets: &[wgpu::DynamicOffset],
-        );
-    }
-    impl SetBindGroup for wgpu::ComputePass<'_> {
-        fn set_bind_group(
-            &mut self,
-            index: u32,
-            bind_group: &wgpu::BindGroup,
-            offsets: &[wgpu::DynamicOffset],
-        ) {
-            self.set_bind_group(index, bind_group, offsets);
-        }
-    }
-    impl SetBindGroup for wgpu::RenderPass<'_> {
-        fn set_bind_group(
-            &mut self,
-            index: u32,
-            bind_group: &wgpu::BindGroup,
-            offsets: &[wgpu::DynamicOffset],
-        ) {
-            self.set_bind_group(index, bind_group, offsets);
-        }
-    }
-}
-pub fn set_bind_groups<P: bind_groups::SetBindGroup>(
-    pass: &mut P,
-    bind_group0: &bind_groups::BindGroup0,
-    bind_group1: &bind_groups::BindGroup1,
-) {
-    bind_group0.set(pass);
-    bind_group1.set(pass);
 }
 impl VertexInput {
     pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] = [wgpu::VertexAttribute {
@@ -190,87 +189,214 @@ impl VertexInput {
         }
     }
 }
-pub const ENTRY_VS_MAIN: &str = "vs_main";
-pub const ENTRY_FS_MAIN: &str = "fs_main";
-#[derive(Debug)]
-pub struct VertexEntry<const N: usize> {
-    pub entry_point: &'static str,
-    pub buffers: [wgpu::VertexBufferLayout<'static>; N],
-    pub constants: std::collections::HashMap<String, f64>,
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum FragmentEntry {
+    fs_main {
+        targets: [Option<wgpu::ColorTargetState>; 1usize],
+    },
 }
-pub fn vertex_state<'a, const N: usize>(
-    module: &'a wgpu::ShaderModule,
-    entry: &'a VertexEntry<N>,
-) -> wgpu::VertexState<'a> {
-    wgpu::VertexState {
-        module,
-        entry_point: entry.entry_point,
-        buffers: &entry.buffers,
-        compilation_options: wgpu::PipelineCompilationOptions {
-            constants: &entry.constants,
+impl FragmentEntry {
+    pub fn entry_point_and_targets(&self) -> (&'static str, &[Option<wgpu::ColorTargetState>]) {
+        match self {
+            Self::fs_main { targets } => ("fs_main", targets),
+            _ => unreachable!(),
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct PipelineLayoutKey {
+    color_texture_filterable: bool,
+    color_sampler_filtering: wgpu::SamplerBindingType,
+}
+pub struct Shader {
+    device: std::sync::Arc<wgpu::Device>,
+    shader_module: std::sync::Arc<wgpu::ShaderModule>,
+    pipeline_layout_cache: std::sync::Mutex<
+        std::collections::HashMap<PipelineLayoutKey, std::sync::Arc<PipelineLayout>>,
+    >,
+}
+impl std::ops::Deref for Shader {
+    type Target = wgpu::ShaderModule;
+    fn deref(&self) -> &Self::Target {
+        &self.shader_module
+    }
+}
+#[bon::bon]
+impl Shader {
+    pub const SOURCE : & 'static str = "struct VertexInput {\n    @location(0) position: vec3<f32>,\n}\n\nstruct VertexOutput {\n    @builtin(position) clip_position: vec4<f32>,\n    @location(0) tex_coords: vec2<f32>,\n}\n\nstruct Uniforms {\n    color_rgb: vec3<f32>,\n}\n\nstruct PushConstants {\n    color_matrix: mat4x4<f32>,\n}\n\noverride force_black: bool;\noverride scale: f32 = 1f;\n\n@group(0) @binding(0) \nvar color_texture: texture_2d<f32>;\n@group(0) @binding(1) \nvar color_sampler: sampler;\n@group(1) @binding(0) \nvar<uniform> uniforms: Uniforms;\nvar<push_constant> constants: PushConstants;\n\n@vertex \nfn vs_main(in: VertexInput) -> VertexOutput {\n    var out: VertexOutput;\n\n    out.clip_position = vec4<f32>(in.position.xyz, 1f);\n    out.tex_coords = ((in.position.xy * 0.5f) + vec2(0.5f));\n    let _e15: VertexOutput = out;\n    return _e15;\n}\n\n@fragment \nfn fs_main(in_1: VertexOutput) -> @location(0) vec4<f32> {\n    let _e4: vec4<f32> = textureSample(color_texture, color_sampler, in_1.tex_coords);\n    let color: vec3<f32> = _e4.xyz;\n    if force_black {\n        return vec4(0f);\n    } else {\n        let _e11: mat4x4<f32> = constants.color_matrix;\n        let _e14: vec3<f32> = uniforms.color_rgb;\n        return (_e11 * vec4<f32>(((color * _e14.xyz) * scale), 1f));\n    }\n}\n" ;
+    pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+        let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(Self::SOURCE)),
+        });
+        let shader_module = std::sync::Arc::new(shader_module);
+        Self {
+            device,
+            shader_module,
+            pipeline_layout_cache: Default::default(),
+        }
+    }
+    fn create_pipeline_layout(
+        &self,
+        PipelineLayoutKey {
+            color_texture_filterable,
+            color_sampler_filtering,
+        }: PipelineLayoutKey,
+    ) -> PipelineLayout {
+        let device = self.device.clone();
+        let bind_group_layouts = (
+            BindGroupLayout0::new(
+                device.clone(),
+                color_texture_filterable,
+                color_sampler_filtering,
+            ),
+            BindGroupLayout1::new(device.clone()),
+        );
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[&bind_group_layouts.0, &bind_group_layouts.1],
+            push_constant_ranges: &[wgpu::PushConstantRange {
+                stages: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                range: 0..64,
+            }],
+        });
+        let shader_module = self.shader_module.clone();
+        PipelineLayout::new(device, shader_module, layout, bind_group_layouts)
+    }
+    # [builder (finish_fn = get)]
+    pub fn pipeline_layout(
+        &self,
+        #[builder(default = true)] color_texture_filterable: bool,
+        # [builder (default = wgpu :: SamplerBindingType :: Filtering)]
+        color_sampler_filtering: wgpu::SamplerBindingType,
+    ) -> std::sync::Arc<PipelineLayout> {
+        let key = PipelineLayoutKey {
+            color_texture_filterable,
+            color_sampler_filtering,
+        };
+        self.pipeline_layout_cache
+            .lock()
+            .unwrap()
+            .entry(key)
+            .or_insert_with_key(|key| std::sync::Arc::new(self.create_pipeline_layout(key.clone())))
+            .clone()
+    }
+}
+pub struct PipelineLayout {
+    device: std::sync::Arc<wgpu::Device>,
+    shader_module: std::sync::Arc<wgpu::ShaderModule>,
+    layout: wgpu::PipelineLayout,
+    bind_group_layouts: (BindGroupLayout0, BindGroupLayout1),
+    vs_main_pipelines: std::sync::Mutex<
+        std::collections::HashMap<PipelineKey_vs_main, std::sync::Arc<wgpu::RenderPipeline>>,
+    >,
+}
+impl std::ops::Deref for PipelineLayout {
+    type Target = wgpu::PipelineLayout;
+    fn deref(&self) -> &Self::Target {
+        &self.layout
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct PipelineKey_vs_main {
+    in_step_mode: wgpu::VertexStepMode,
+    overrides: OverrideConstants,
+    primitive: wgpu::PrimitiveState,
+    depth_stencil: Option<wgpu::DepthStencilState>,
+    multisample: wgpu::MultisampleState,
+    fragment: FragmentEntry,
+    multiview: Option<std::num::NonZero<u32>>,
+}
+#[bon::bon]
+impl PipelineLayout {
+    pub fn new(
+        device: std::sync::Arc<wgpu::Device>,
+        shader_module: std::sync::Arc<wgpu::ShaderModule>,
+        layout: wgpu::PipelineLayout,
+        bind_group_layouts: (BindGroupLayout0, BindGroupLayout1),
+    ) -> Self {
+        Self {
+            device,
+            shader_module,
+            layout,
+            bind_group_layouts,
+            vs_main_pipelines: Default::default(),
+        }
+    }
+    pub fn bind_group_layouts(&self) -> &(BindGroupLayout0, BindGroupLayout1) {
+        &self.bind_group_layouts
+    }
+    fn pipeline_vs_main_from_key(
+        &self,
+        PipelineKey_vs_main {
+            in_step_mode,
+            overrides,
+            primitive,
+            depth_stencil,
+            multisample,
+            fragment,
+            multiview,
+        }: PipelineKey_vs_main,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> wgpu::RenderPipeline {
+        let device = &self.device;
+        let module = &self.shader_module;
+        let constants = overrides.constants();
+        let compilation_options = wgpu::PipelineCompilationOptions {
+            constants: &constants,
             ..Default::default()
-        },
+        };
+        let (fragment_entry, targets) = fragment.entry_point_and_targets();
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: None,
+            layout: Some(&self.layout),
+            vertex: wgpu::VertexState {
+                module,
+                entry_point: "vs_main",
+                compilation_options: compilation_options.clone(),
+                buffers: &[VertexInput::vertex_buffer_layout(in_step_mode)],
+            },
+            primitive,
+            depth_stencil,
+            multisample,
+            fragment: Some(wgpu::FragmentState {
+                module,
+                entry_point: fragment_entry,
+                compilation_options,
+                targets,
+            }),
+            multiview,
+            cache,
+        })
     }
-}
-pub const NUM_VERTEX_INPUTS_VS_MAIN: usize = 1;
-pub fn vs_main_entry(
-    vertex_input: wgpu::VertexStepMode,
-    overrides: &OverrideConstants,
-) -> VertexEntry<NUM_VERTEX_INPUTS_VS_MAIN> {
-    VertexEntry {
-        entry_point: ENTRY_VS_MAIN,
-        buffers: [VertexInput::vertex_buffer_layout(vertex_input)],
-        constants: overrides.constants(),
+    # [builder (finish_fn = get)]
+    pub fn vs_main_pipeline(
+        &self,
+        #[builder(start_fn)] in_step_mode: wgpu::VertexStepMode,
+        #[builder(default)] overrides: OverrideConstants,
+        #[builder(default)] primitive: wgpu::PrimitiveState,
+        depth_stencil: Option<wgpu::DepthStencilState>,
+        #[builder(default)] multisample: wgpu::MultisampleState,
+        fragment: FragmentEntry,
+        multiview: Option<std::num::NonZero<u32>>,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> std::sync::Arc<wgpu::RenderPipeline> {
+        let key = PipelineKey_vs_main {
+            in_step_mode,
+            overrides,
+            primitive,
+            depth_stencil,
+            multisample,
+            fragment,
+            multiview,
+        };
+        self.vs_main_pipelines
+            .lock()
+            .unwrap()
+            .entry(key)
+            .or_insert_with_key(|key| {
+                std::sync::Arc::new(self.pipeline_vs_main_from_key(key.clone(), cache))
+            })
+            .clone()
     }
-}
-#[derive(Debug)]
-pub struct FragmentEntry<const N: usize> {
-    pub entry_point: &'static str,
-    pub targets: [Option<wgpu::ColorTargetState>; N],
-    pub constants: std::collections::HashMap<String, f64>,
-}
-pub fn fragment_state<'a, const N: usize>(
-    module: &'a wgpu::ShaderModule,
-    entry: &'a FragmentEntry<N>,
-) -> wgpu::FragmentState<'a> {
-    wgpu::FragmentState {
-        module,
-        entry_point: entry.entry_point,
-        targets: &entry.targets,
-        compilation_options: wgpu::PipelineCompilationOptions {
-            constants: &entry.constants,
-            ..Default::default()
-        },
-    }
-}
-pub const NUM_TARGETS_FS_MAIN: usize = 1;
-pub fn fs_main_entry(
-    targets: [Option<wgpu::ColorTargetState>; NUM_TARGETS_FS_MAIN],
-    overrides: &OverrideConstants,
-) -> FragmentEntry<NUM_TARGETS_FS_MAIN> {
-    FragmentEntry {
-        entry_point: ENTRY_FS_MAIN,
-        targets,
-        constants: overrides.constants(),
-    }
-}
-pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
-    let source = std :: borrow :: Cow :: Borrowed ("struct VertexInput {\n    @location(0) position: vec3<f32>,\n}\n\nstruct VertexOutput {\n    @builtin(position) clip_position: vec4<f32>,\n    @location(0) tex_coords: vec2<f32>,\n}\n\nstruct Uniforms {\n    color_rgb: vec3<f32>,\n}\n\nstruct PushConstants {\n    color_matrix: mat4x4<f32>,\n}\n\noverride force_black: bool;\noverride scale: f32 = 1f;\n\n@group(0) @binding(0) \nvar color_texture: texture_2d<f32>;\n@group(0) @binding(1) \nvar color_sampler: sampler;\n@group(1) @binding(0) \nvar<uniform> uniforms: Uniforms;\nvar<push_constant> constants: PushConstants;\n\n@vertex \nfn vs_main(in: VertexInput) -> VertexOutput {\n    var out: VertexOutput;\n\n    out.clip_position = vec4<f32>(in.position.xyz, 1f);\n    out.tex_coords = ((in.position.xy * 0.5f) + vec2(0.5f));\n    let _e15: VertexOutput = out;\n    return _e15;\n}\n\n@fragment \nfn fs_main(in_1: VertexOutput) -> @location(0) vec4<f32> {\n    let _e4: vec4<f32> = textureSample(color_texture, color_sampler, in_1.tex_coords);\n    let color: vec3<f32> = _e4.xyz;\n    if force_black {\n        return vec4(0f);\n    } else {\n        let _e11: mat4x4<f32> = constants.color_matrix;\n        let _e14: vec3<f32> = uniforms.color_rgb;\n        return (_e11 * vec4<f32>(((color * _e14.xyz) * scale), 1f));\n    }\n}\n") ;
-    device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: None,
-        source: wgpu::ShaderSource::Wgsl(source),
-    })
-}
-pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
-    device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: None,
-        bind_group_layouts: &[
-            &bind_groups::BindGroup0::get_bind_group_layout(device),
-            &bind_groups::BindGroup1::get_bind_group_layout(device),
-        ],
-        push_constant_ranges: &[wgpu::PushConstantRange {
-            stages: wgpu::ShaderStages::VERTEX_FRAGMENT,
-            range: 0..64,
-        }],
-    })
 }

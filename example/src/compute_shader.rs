@@ -5,117 +5,202 @@
 pub struct Uniforms {
     pub color_rgb: glam::Vec3,
 }
-pub mod bind_groups {
-    #[derive(Debug)]
-    pub struct BindGroup0(wgpu::BindGroup);
-    #[derive(Debug)]
-    pub struct BindGroupLayout0<'a> {
-        pub uniforms: wgpu::BufferBinding<'a>,
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OverrideConstants {}
+impl OverrideConstants {
+    pub fn constants(&self) -> std::collections::HashMap<String, f64> {
+        [].into_iter().filter_map(|a| a).collect()
     }
-    const LAYOUT_DESCRIPTOR0: wgpu::BindGroupLayoutDescriptor = wgpu::BindGroupLayoutDescriptor {
-        label: Some("LayoutDescriptor0"),
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::COMPUTE,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Storage { read_only: false },
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-    };
-    impl BindGroup0 {
-        pub fn get_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-            device.create_bind_group_layout(&LAYOUT_DESCRIPTOR0)
-        }
-        pub fn from_bindings(device: &wgpu::Device, bindings: BindGroupLayout0) -> Self {
-            let bind_group_layout = device.create_bind_group_layout(&LAYOUT_DESCRIPTOR0);
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(bindings.uniforms),
-                }],
-                label: Some("BindGroup0"),
-            });
-            Self(bind_group)
-        }
-        pub fn set<P: SetBindGroup>(&self, pass: &mut P) {
-            pass.set_bind_group(0, &self.0, &[]);
-        }
+}
+#[derive(Debug)]
+pub struct BindGroupLayout0 {
+    device: std::sync::Arc<wgpu::Device>,
+    layout: wgpu::BindGroupLayout,
+}
+impl std::ops::Deref for BindGroupLayout0 {
+    type Target = wgpu::BindGroupLayout;
+    fn deref(&self) -> &Self::Target {
+        &self.layout
     }
-    #[derive(Debug, Copy, Clone)]
-    pub struct BindGroups<'a> {
-        pub bind_group0: &'a BindGroup0,
+}
+pub struct BindGroup0(wgpu::BindGroup);
+impl std::ops::Deref for BindGroup0 {
+    type Target = wgpu::BindGroup;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
-    impl<'a> BindGroups<'a> {
-        pub fn set<P: SetBindGroup>(&self, pass: &mut P) {
-            self.bind_group0.set(pass);
-        }
+}
+impl BindGroup0 {
+    pub fn set(&self, pass: &mut wgpu::RenderPass) {
+        pass.set_bind_group(0u32, self, &[]);
     }
-    pub trait SetBindGroup {
-        fn set_bind_group(
-            &mut self,
-            index: u32,
-            bind_group: &wgpu::BindGroup,
-            offsets: &[wgpu::DynamicOffset],
-        );
+    pub fn set_compute(&self, pass: &mut wgpu::ComputePass) {
+        pass.set_bind_group(0u32, self, &[]);
     }
-    impl SetBindGroup for wgpu::ComputePass<'_> {
-        fn set_bind_group(
-            &mut self,
-            index: u32,
-            bind_group: &wgpu::BindGroup,
-            offsets: &[wgpu::DynamicOffset],
-        ) {
-            self.set_bind_group(index, bind_group, offsets);
-        }
+}
+#[bon::bon]
+impl BindGroupLayout0 {
+    pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: false },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+        Self { device, layout }
     }
-    impl SetBindGroup for wgpu::RenderPass<'_> {
-        fn set_bind_group(
-            &mut self,
-            index: u32,
-            bind_group: &wgpu::BindGroup,
-            offsets: &[wgpu::DynamicOffset],
-        ) {
-            self.set_bind_group(index, bind_group, offsets);
+    # [builder (finish_fn = create)]
+    pub fn bind_group(&self, uniforms: wgpu::BufferBinding<'_>) -> BindGroup0 {
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(uniforms),
+            }],
+            label: None,
+        });
+        BindGroup0(bind_group)
+    }
+}
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum FragmentEntry {}
+impl FragmentEntry {
+    pub fn entry_point_and_targets(&self) -> (&'static str, &[Option<wgpu::ColorTargetState>]) {
+        match self {
+            _ => unreachable!(),
         }
     }
 }
-pub fn set_bind_groups<P: bind_groups::SetBindGroup>(
-    pass: &mut P,
-    bind_group0: &bind_groups::BindGroup0,
-) {
-    bind_group0.set(pass);
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct PipelineLayoutKey {}
+pub struct Shader {
+    device: std::sync::Arc<wgpu::Device>,
+    shader_module: std::sync::Arc<wgpu::ShaderModule>,
+    pipeline_layout_cache: std::sync::Mutex<
+        std::collections::HashMap<PipelineLayoutKey, std::sync::Arc<PipelineLayout>>,
+    >,
 }
-pub mod compute {
-    pub const MAIN_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
-    pub fn create_main_pipeline(device: &wgpu::Device) -> wgpu::ComputePipeline {
-        let module = super::create_shader_module(device);
-        let layout = super::create_pipeline_layout(device);
+impl std::ops::Deref for Shader {
+    type Target = wgpu::ShaderModule;
+    fn deref(&self) -> &Self::Target {
+        &self.shader_module
+    }
+}
+#[bon::bon]
+impl Shader {
+    pub const SOURCE : & 'static str = "struct Uniforms {\n    color_rgb: vec3<f32>,\n}\n\n@group(0) @binding(0) \nvar<storage, read_write> uniforms: Uniforms;\n\n@compute @workgroup_size(1, 1, 1) \nfn main(@builtin(global_invocation_id) global_id: vec3<u32>) {\n    if (global_id.x == 0u) {\n        uniforms.color_rgb = vec3(1f);\n        return;\n    } else {\n        return;\n    }\n}\n" ;
+    pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+        let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(Self::SOURCE)),
+        });
+        let shader_module = std::sync::Arc::new(shader_module);
+        Self {
+            device,
+            shader_module,
+            pipeline_layout_cache: Default::default(),
+        }
+    }
+    fn create_pipeline_layout(&self, PipelineLayoutKey {}: PipelineLayoutKey) -> PipelineLayout {
+        let device = self.device.clone();
+        let bind_group_layouts = (BindGroupLayout0::new(device.clone()),);
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[&bind_group_layouts.0],
+            push_constant_ranges: &[],
+        });
+        let shader_module = self.shader_module.clone();
+        PipelineLayout::new(device, shader_module, layout, bind_group_layouts)
+    }
+    # [builder (finish_fn = get)]
+    pub fn pipeline_layout(&self) -> std::sync::Arc<PipelineLayout> {
+        let key = PipelineLayoutKey {};
+        self.pipeline_layout_cache
+            .lock()
+            .unwrap()
+            .entry(key)
+            .or_insert_with_key(|key| std::sync::Arc::new(self.create_pipeline_layout(key.clone())))
+            .clone()
+    }
+}
+pub struct PipelineLayout {
+    device: std::sync::Arc<wgpu::Device>,
+    shader_module: std::sync::Arc<wgpu::ShaderModule>,
+    layout: wgpu::PipelineLayout,
+    bind_group_layouts: (BindGroupLayout0,),
+    main_pipelines: std::sync::Mutex<
+        std::collections::HashMap<PipelineKey_main, std::sync::Arc<wgpu::ComputePipeline>>,
+    >,
+}
+impl std::ops::Deref for PipelineLayout {
+    type Target = wgpu::PipelineLayout;
+    fn deref(&self) -> &Self::Target {
+        &self.layout
+    }
+}
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct PipelineKey_main {
+    overrides: OverrideConstants,
+}
+#[bon::bon]
+impl PipelineLayout {
+    pub fn new(
+        device: std::sync::Arc<wgpu::Device>,
+        shader_module: std::sync::Arc<wgpu::ShaderModule>,
+        layout: wgpu::PipelineLayout,
+        bind_group_layouts: (BindGroupLayout0,),
+    ) -> Self {
+        Self {
+            device,
+            shader_module,
+            layout,
+            bind_group_layouts,
+            main_pipelines: Default::default(),
+        }
+    }
+    pub fn bind_group_layouts(&self) -> &(BindGroupLayout0,) {
+        &self.bind_group_layouts
+    }
+    fn main_from_key(
+        &self,
+        PipelineKey_main { overrides }: PipelineKey_main,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> wgpu::ComputePipeline {
+        let device = &self.device;
+        let module = &self.shader_module;
+        let constants = overrides.constants();
+        let compilation_options = wgpu::PipelineCompilationOptions {
+            constants: &constants,
+            ..Default::default()
+        };
         device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Compute Pipeline main"),
-            layout: Some(&layout),
-            module: &module,
+            label: None,
+            layout: Some(&self.layout),
+            module,
             entry_point: "main",
-            compilation_options: Default::default(),
-            cache: Default::default(),
+            compilation_options,
+            cache,
         })
     }
-}
-pub const ENTRY_MAIN: &str = "main";
-pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
-    let source = std :: borrow :: Cow :: Borrowed ("struct Uniforms {\n    color_rgb: vec3<f32>,\n}\n\n@group(0) @binding(0) \nvar<storage, read_write> uniforms: Uniforms;\n\n@compute @workgroup_size(1, 1, 1) \nfn main(@builtin(global_invocation_id) global_id: vec3<u32>) {\n    if (global_id.x == 0u) {\n        uniforms.color_rgb = vec3(1f);\n        return;\n    } else {\n        return;\n    }\n}\n") ;
-    device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: None,
-        source: wgpu::ShaderSource::Wgsl(source),
-    })
-}
-pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
-    device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: None,
-        bind_group_layouts: &[&bind_groups::BindGroup0::get_bind_group_layout(device)],
-        push_constant_ranges: &[],
-    })
+    # [builder (finish_fn = get)]
+    pub fn main_pipeline(
+        &self,
+        #[builder(default)] overrides: OverrideConstants,
+        cache: Option<&wgpu::PipelineCache>,
+    ) -> std::sync::Arc<wgpu::ComputePipeline> {
+        let key = PipelineKey_main { overrides };
+        self.main_pipelines
+            .lock()
+            .unwrap()
+            .entry(key)
+            .or_insert_with_key(|key| std::sync::Arc::new(self.main_from_key(key.clone(), cache)))
+            .clone()
+    }
 }

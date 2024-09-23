@@ -1,8 +1,12 @@
+use naga::Override;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::Ident;
 
-use crate::{wgsl::rust_type, MatrixVectorTypes};
+use crate::{
+    wgsl::{require_ordered_float, rust_type},
+    MatrixVectorTypes,
+};
 
 pub fn consts(module: &naga::Module) -> Vec<TokenStream> {
     // Create matching Rust constants for WGSl constants.
@@ -33,10 +37,26 @@ pub fn consts(module: &naga::Module) -> Vec<TokenStream> {
         .collect()
 }
 
-pub fn pipeline_overridable_constants(
-    module: &naga::Module,
-    force_override_constants: bool,
-) -> TokenStream {
+fn convert_overridable_constant_to_f64(ty: &naga::Type, value: TokenStream) -> TokenStream {
+    match ty.inner {
+        naga::TypeInner::Scalar(s) if s.kind == naga::ScalarKind::Bool => {
+            quote!(if #value { 1f64 } else { 0f64 })
+        }
+        naga::TypeInner::Scalar(s) if require_ordered_float(s.kind) => {
+            quote!(#value.into_inner() as f64)
+        }
+        _ => quote!(#value as f64),
+    }
+}
+
+fn convert_overridable_constant_to_pair(module: &naga::Module, o: &Override, value: TokenStream) -> TokenStream {
+    let key = override_key(o);
+    let ty = &module.types[o.ty];
+    let value = convert_overridable_constant_to_f64(ty, value);
+    quote!((#key.to_owned(), #value))
+}
+
+pub fn pipeline_overridable_constants(module: &naga::Module) -> TokenStream {
     let overrides: Vec<_> = module.overrides.iter().map(|(_, o)| o).collect();
 
     let fields: Vec<_> = overrides
@@ -44,7 +64,11 @@ pub fn pipeline_overridable_constants(
         .map(|o| {
             let name = Ident::new(o.name.as_ref().unwrap(), Span::call_site());
             // TODO: Do we only need to handle scalar types here?
-            let ty = rust_type(module, &module.types[o.ty], MatrixVectorTypes::Rust);
+            let ty = rust_type(
+                module,
+                &module.types[o.ty],
+                MatrixVectorTypes::Rust { ordered: true },
+            );
 
             if o.init.is_some() {
                 quote!(pub #name: Option<#ty>)
@@ -54,82 +78,32 @@ pub fn pipeline_overridable_constants(
         })
         .collect();
 
-    let required_entries: Vec<_> = overrides
+    let entries: Vec<_> = overrides
         .iter()
-        .filter_map(|o| {
+        .map(|o| {
+            let name = Ident::new(o.name.as_ref().unwrap(), Span::call_site());
             if o.init.is_some() {
-                None
+                let pair = convert_overridable_constant_to_pair(module, o, quote!(v));
+                quote!(self.#name.map(|v| #pair))
             } else {
-                let key = override_key(o);
-
-                let name = Ident::new(o.name.as_ref().unwrap(), Span::call_site());
-
-                // TODO: Do we only need to handle scalar types here?
-                let ty = &module.types[o.ty];
-                let value = if matches!(ty.inner, naga::TypeInner::Scalar(s) if s.kind == naga::ScalarKind::Bool) {
-                    quote!(if self.#name { 1.0 } else { 0.0})
-                } else {
-                    quote!(self.#name as f64)
-                };
-
-                Some(quote!((#key.to_owned(), #value)))
+                let pair = convert_overridable_constant_to_pair(module, o, quote!(self.#name));
+                quote!(Some(#pair))
             }
         })
         .collect();
 
-    // Add code for optionally inserting the constants with defaults.
-    // Omitted constants will be initialized using the values defined in WGSL.
-    let insert_optional_entries: Vec<_> = overrides
-        .iter()
-        .filter_map(|o| {
-            if o.init.is_some() {
-                let key = override_key(o);
+    // Create a Rust struct that can initialize the constants dictionary.
+    quote! {
+        #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct OverrideConstants {
+            #(#fields),*
+        }
 
-                // TODO: Do we only need to handle scalar types here?
-                let ty = &module.types[o.ty];
-                let value = if matches!(ty.inner, naga::TypeInner::Scalar(s) if s.kind == naga::ScalarKind::Bool) {
-                    quote!(if value { 1.0 } else { 0.0})
-                } else {
-                    quote!(value as f64)
-                };
-
-                let name = Ident::new(o.name.as_ref().unwrap(), Span::call_site());
-
-                Some(quote! {
-                    if let Some(value) = self.#name {
-                        entries.insert(#key.to_owned(), #value);
-                    }
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    let init_entries = if insert_optional_entries.is_empty() {
-        quote!(let entries = std::collections::HashMap::from([#(#required_entries),*]);)
-    } else {
-        quote!(let mut entries = std::collections::HashMap::from([#(#required_entries),*]);)
-    };
-
-    if !fields.is_empty() || force_override_constants {
-        // Create a Rust struct that can initialize the constants dictionary.
-        quote! {
-            #[derive(Default)]
-            pub struct OverrideConstants {
-                #(#fields),*
-            }
-
-            impl OverrideConstants {
-                pub fn constants(&self) -> std::collections::HashMap<String, f64> {
-                    #init_entries
-                    #(#insert_optional_entries);*
-                    entries
-                }
+        impl OverrideConstants {
+            pub fn constants(&self) -> std::collections::HashMap<String, f64> {
+                [#(#entries),*].into_iter().filter_map(|a| a).collect()
             }
         }
-    } else {
-        quote!()
     }
 }
 
@@ -205,7 +179,7 @@ mod tests {
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
 
-        let actual = pipeline_overridable_constants(&module, false);
+        let actual = pipeline_overridable_constants(&module);
 
         assert_tokens_eq!(
             quote! {
@@ -267,7 +241,7 @@ mod tests {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = pipeline_overridable_constants(&module, false);
+        let actual = pipeline_overridable_constants(&module);
         assert_tokens_eq!(quote!(), actual);
     }
 }

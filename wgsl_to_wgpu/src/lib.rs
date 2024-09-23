@@ -39,7 +39,7 @@ use std::{
 
 use bindgroup::{bind_groups_module, get_bind_group_data};
 use consts::pipeline_overridable_constants;
-use entry::{entry_point_constants, fragment_states, vertex_states, vertex_struct_methods};
+use entry::{entry_point_constants, vertex_struct_methods};
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::quote;
 use syn::Ident;
@@ -49,7 +49,9 @@ mod bindgroup;
 mod consts;
 mod entry;
 mod structs;
+mod shader;
 mod wgsl;
+mod pipeline_layout;
 
 /// Errors while generating Rust source for a WGSl shader module.
 #[derive(Debug, PartialEq, Eq, Error)]
@@ -98,18 +100,14 @@ pub struct WriteOptions {
     /// The format to use for matrix and vector types.
     pub matrix_vector_types: MatrixVectorTypes,
 
+    // TODO: Remove this and all text output. The current obstacle is testing. Instead, let's just always parse the golden files and compare token streams.
+    //
     /// Format the generated code with the `rustfmt` formatter used for `cargo fmt`.
     /// This invokes a separate process to run the `rustfmt` executable.
     /// For cases where `rustfmt` is not available
     /// or the generated code is not included in the src directory,
     /// leave this at its default value of `false`.
     pub rustfmt: bool,
-
-    /// Determines whether the texture and sampler bindings should be filterable.
-    pub non_filterable: bool,
-
-    // Always generate `OverrideConstants` even if it is empty. This is useful for providing consistency when the generated code is consumed automatically rather than used directly by the user.
-    pub force_override_constants: bool,
 }
 
 /// The format to use for matrix and vector types.
@@ -117,7 +115,7 @@ pub struct WriteOptions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MatrixVectorTypes {
     /// Rust types like `[f32; 4]` or `[[f32; 4]; 4]`.
-    Rust,
+    Rust { ordered: bool },
 
     /// `glam` types like `glam::Vec4` or `glam::Mat4`.
     /// Types not representable by `glam` like `mat2x3<f32>` will use the output from [MatrixVectorTypes::Rust].
@@ -129,46 +127,8 @@ pub enum MatrixVectorTypes {
 
 impl Default for MatrixVectorTypes {
     fn default() -> Self {
-        Self::Rust
+        Self::Rust { ordered: false }
     }
-}
-
-/// Generates a Rust module for a WGSL shader included via [include_str].
-///
-/// The `wgsl_include_path` should be a valid input to [include_str] in the generated file's location.
-/// The included contents should be identical to `wgsl_source`.
-///
-/// # Examples
-/// This function is intended to be called at build time such as in a build script.
-/**
-```rust no_run
-// build.rs
-fn main() {
-    println!("cargo:rerun-if-changed=src/shader.wgsl");
-
-    // Read the shader source file.
-    let wgsl_source = std::fs::read_to_string("src/shader.wgsl").unwrap();
-
-    // Configure the output based on the dependencies for the project.
-    let options = wgsl_to_wgpu::WriteOptions {
-        derive_bytemuck_vertex: true,
-        derive_encase_host_shareable: true,
-        matrix_vector_types: wgsl_to_wgpu::MatrixVectorTypes::Glam,
-        ..Default::default()
-    };
-
-    // Generate the bindings.
-    let text = wgsl_to_wgpu::create_shader_module(&wgsl_source, "shader.wgsl", options).unwrap();
-    std::fs::write("src/shader.rs", text.as_bytes()).unwrap();
-}
-```
- */
-pub fn create_shader_module(
-    wgsl_source: &str,
-    wgsl_include_path: &str,
-    options: WriteOptions,
-) -> Result<String, CreateModuleError> {
-    create_shader_module_inner(wgsl_source, Some(wgsl_include_path), options)
 }
 
 // TODO: Show how to convert a naga module back to wgsl.
@@ -195,106 +155,13 @@ fn main() {
     };
 
     // Generate the bindings.
-    let text = wgsl_to_wgpu::create_shader_module_embedded(&wgsl_source, options).unwrap();
+    let text = wgsl_to_wgpu::create_shader_module(&wgsl_source, options).unwrap();
     std::fs::write("src/shader.rs", text.as_bytes()).unwrap();
 }
 ```
  */
-pub fn create_shader_module_embedded(
+pub fn create_shader_module(
     wgsl_source: &str,
-    options: WriteOptions,
-) -> Result<String, CreateModuleError> {
-    create_shader_module_inner(wgsl_source, None, options)
-}
-
-pub fn create_shader_module_tokens(
-    module: &naga::Module,
-    options: WriteOptions,
-) -> Result<TokenStream, CreateModuleError> {
-    let mut validator = naga::valid::Validator::new(
-        // TODO: We should probably make this part of the input options.
-        naga::valid::ValidationFlags::empty(),
-        // TODO: We should probably make this part of the input options.
-        naga::valid::Capabilities::all(),
-    );
-    let module_info = validator.validate(module).unwrap();
-    let wgsl_source = naga::back::wgsl::write_string(
-        module,
-        &module_info,
-        // Without this, Naga changes `let A: f32 = 0f;` to `const: A = 0f;` which it then doesn't think is valid.
-        naga::back::wgsl::WriterFlags::EXPLICIT_TYPES,
-    )
-    .unwrap();
-
-    let bind_group_data = get_bind_group_data(&module, !options.non_filterable)?;
-    let shader_stages = wgsl::shader_stages(&module);
-
-    // Write all the structs, including uniforms and entry function inputs.
-    let structs = structs::structs(&module, options);
-    let consts = consts::consts(&module);
-    let bind_groups_module = bind_groups_module(&bind_group_data, shader_stages);
-    let vertex_module = vertex_struct_methods(&module);
-    let compute_module = compute_module(&module);
-    let entry_point_constants = entry_point_constants(&module);
-    let vertex_states = vertex_states(&module, options.force_override_constants);
-    let fragment_states = fragment_states(&module, options.force_override_constants);
-
-    // Use a string literal if no include path is provided.
-    let included_source = quote!(#wgsl_source);
-
-    let create_shader_module = quote! {
-        pub fn create_shader_module(device: &wgpu::Device) -> wgpu::ShaderModule {
-            let source = std::borrow::Cow::Borrowed(#included_source);
-            device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: None,
-                source: wgpu::ShaderSource::Wgsl(source)
-            })
-        }
-    };
-
-    let bind_group_layouts: Vec<_> = bind_group_data
-        .keys()
-        .map(|group_no| {
-            let group = indexed_name_to_ident("BindGroup", *group_no);
-            quote!(bind_groups::#group::get_bind_group_layout(device))
-        })
-        .collect();
-
-    let push_constant_range = push_constant_range(&module, shader_stages);
-
-    let create_pipeline_layout = quote! {
-        pub fn create_pipeline_layout(device: &wgpu::Device) -> wgpu::PipelineLayout {
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: None,
-                bind_group_layouts: &[
-                    #(&#bind_group_layouts),*
-                ],
-                push_constant_ranges: &[#push_constant_range],
-            })
-        }
-    };
-
-    let override_constants =
-        pipeline_overridable_constants(&module, options.force_override_constants);
-
-    Ok(quote! {
-        #structs
-        #(#consts)*
-        #override_constants
-        #bind_groups_module
-        #vertex_module
-        #compute_module
-        #entry_point_constants
-        #vertex_states
-        #fragment_states
-        #create_shader_module
-        #create_pipeline_layout
-    })
-}
-
-fn create_shader_module_inner(
-    wgsl_source: &str,
-    wgsl_include_path: Option<&str>,
     options: WriteOptions,
 ) -> Result<String, CreateModuleError> {
     let module = naga::front::wgsl::parse_str(wgsl_source).unwrap();
@@ -306,6 +173,39 @@ fn create_shader_module_inner(
     } else {
         Ok(pretty_print(output))
     }
+}
+
+pub fn create_shader_module_tokens(
+    module: &naga::Module,
+    options: WriteOptions,
+) -> Result<TokenStream, CreateModuleError> {
+    let bind_group_data = get_bind_group_data(&module)?;
+    let shader_stages = wgsl::shader_stages(&module);
+
+    // Write all the structs, including uniforms and entry function inputs.
+    let structs = structs::structs(&module, options);
+    let consts = consts::consts(&module);
+    let (bind_groups_module, bind_groups) = bind_groups_module(&bind_group_data, shader_stages);
+    let vertex_module = vertex_struct_methods(&module);
+    let entry_point_constants = entry_point_constants(&module);
+
+    let push_constant_range = push_constant_range(&module, shader_stages);
+
+    let override_constants = pipeline_overridable_constants(&module);
+
+    let shader_definition = shader::define_shader(module, &bind_groups, push_constant_range);
+    let pipeline_layout = pipeline_layout::define_pipeline_layout(module, &bind_groups);
+
+    Ok(quote! {
+        #structs
+        #(#consts)*
+        #override_constants
+        #bind_groups_module
+        #vertex_module
+        #entry_point_constants
+        #shader_definition
+        #pipeline_layout
+    })
 }
 
 fn push_constant_range(
@@ -366,70 +266,6 @@ fn indexed_name_to_ident(name: &str, index: u32) -> Ident {
     Ident::new(&format!("{name}{index}"), Span::call_site())
 }
 
-fn compute_module(module: &naga::Module) -> TokenStream {
-    let entry_points: Vec<_> = module
-        .entry_points
-        .iter()
-        .filter_map(|e| {
-            if e.stage == naga::ShaderStage::Compute {
-                let workgroup_size_constant = workgroup_size(e);
-                let create_pipeline = create_compute_pipeline(e);
-
-                Some(quote! {
-                    #workgroup_size_constant
-                    #create_pipeline
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    if entry_points.is_empty() {
-        // Don't include empty modules.
-        quote!()
-    } else {
-        quote! {
-            pub mod compute {
-                #(#entry_points)*
-            }
-        }
-    }
-}
-
-fn create_compute_pipeline(e: &naga::EntryPoint) -> TokenStream {
-    // Compute pipeline creation has few parameters and can be generated.
-    let pipeline_name = Ident::new(&format!("create_{}_pipeline", e.name), Span::call_site());
-    let entry_point = &e.name;
-    // TODO: Include a user supplied module name in the label?
-    let label = format!("Compute Pipeline {}", e.name);
-    quote! {
-        pub fn #pipeline_name(device: &wgpu::Device) -> wgpu::ComputePipeline {
-            let module = super::create_shader_module(device);
-            let layout = super::create_pipeline_layout(device);
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some(#label),
-                layout: Some(&layout),
-                module: &module,
-                entry_point: #entry_point,
-                compilation_options: Default::default(),
-                cache: Default::default(),
-            })
-        }
-    }
-}
-
-fn workgroup_size(e: &naga::EntryPoint) -> TokenStream {
-    let name = Ident::new(
-        &format!("{}_WORKGROUP_SIZE", e.name.to_uppercase()),
-        Span::call_site(),
-    );
-    let [x, y, z] = e
-        .workgroup_size
-        .map(|s| Literal::usize_unsuffixed(s as usize));
-    quote!(pub const #name: [u32; 3] = [#x, #y, #z];)
-}
-
 fn quote_shader_stages(stages: wgpu::ShaderStages) -> TokenStream {
     if stages == wgpu::ShaderStages::all() {
         quote!(wgpu::ShaderStages::all())
@@ -484,7 +320,7 @@ mod test {
             fn fs_main() {}
         "#};
 
-        let actual = create_shader_module(source, "shader.wgsl", WriteOptions::default())
+        let actual = create_shader_module(source, WriteOptions::default())
             .unwrap()
             .parse()
             .unwrap();
@@ -555,14 +391,14 @@ mod test {
     #[test]
     fn create_shader_module_embed_source() {
         let source = include_str!("data/fragment_simple.wgsl");
-        let actual = create_shader_module_embedded(source, WriteOptions::default()).unwrap();
+        let actual = create_shader_module(source, WriteOptions::default()).unwrap();
         assert_eq!(include_str!("data/fragment_simple.rs"), actual);
     }
 
     #[test]
     fn create_shader_module_embed_source_rustfmt() {
         let source = include_str!("data/fragment_simple.wgsl");
-        let actual = create_shader_module_embedded(
+        let actual = create_shader_module(
             source,
             WriteOptions {
                 rustfmt: true,
@@ -571,24 +407,6 @@ mod test {
         )
         .unwrap();
         assert_eq!(include_str!("data/fragment_simple_rustfmt.rs"), actual);
-    }
-
-    #[test]
-    fn create_shader_module_embed_source_force_override_constants() {
-        let source = include_str!("data/fragment_simple.wgsl");
-        let actual = create_shader_module_embedded(
-            source,
-            WriteOptions {
-                rustfmt: true,
-                force_override_constants: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(
-            include_str!("data/fragment_simple_force_override_constants.rs"),
-            actual
-        );
     }
 
     #[test]
@@ -609,7 +427,7 @@ mod test {
             fn fs_main() {}
         "#};
 
-        create_shader_module(source, "shader.wgsl", WriteOptions::default()).unwrap();
+        create_shader_module(source, WriteOptions::default()).unwrap();
     }
 
     #[test]
@@ -623,7 +441,7 @@ mod test {
             fn main() {}
         "#};
 
-        let result = create_shader_module(source, "shader.wgsl", WriteOptions::default());
+        let result = create_shader_module(source, WriteOptions::default());
         assert!(matches!(
             result,
             Err(CreateModuleError::NonConsecutiveBindGroups)
@@ -643,7 +461,7 @@ mod test {
             fn main() {}
         "#};
 
-        let result = create_shader_module(source, "shader.wgsl", WriteOptions::default());
+        let result = create_shader_module(source, WriteOptions::default());
         assert!(matches!(
             result,
             Err(CreateModuleError::DuplicateBinding { binding: 2 })
@@ -885,76 +703,6 @@ mod test {
                             step_mode,
                             attributes: &VertexInput0::VERTEX_ATTRIBUTES,
                         }
-                    }
-                }
-            },
-            actual
-        );
-    }
-
-    #[test]
-    fn write_compute_module_empty() {
-        let source = indoc! {r#"
-            @vertex
-            fn main() {}
-        "#};
-
-        let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = compute_module(&module);
-
-        assert_tokens_eq!(quote!(), actual);
-    }
-
-    #[test]
-    fn write_compute_module_multiple_entries() {
-        let source = indoc! {r#"
-            @compute
-            @workgroup_size(1,2,3)
-            fn main1() {}
-
-            @compute
-            @workgroup_size(256)
-            fn main2() {}
-        "#
-        };
-
-        let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = compute_module(&module);
-
-        assert_tokens_eq!(
-            quote! {
-                pub mod compute {
-                    pub const MAIN1_WORKGROUP_SIZE: [u32; 3] = [1, 2, 3];
-                    pub fn create_main1_pipeline(device: &wgpu::Device) -> wgpu::ComputePipeline {
-                        let module = super::create_shader_module(device);
-                        let layout = super::create_pipeline_layout(device);
-                        device
-                            .create_compute_pipeline(
-                                &wgpu::ComputePipelineDescriptor {
-                                    label: Some("Compute Pipeline main1"),
-                                    layout: Some(&layout),
-                                    module: &module,
-                                    entry_point: "main1",
-                                    compilation_options: Default::default(),
-                                    cache: Default::default(),
-                                },
-                            )
-                    }
-                    pub const MAIN2_WORKGROUP_SIZE: [u32; 3] = [256, 1, 1];
-                    pub fn create_main2_pipeline(device: &wgpu::Device) -> wgpu::ComputePipeline {
-                        let module = super::create_shader_module(device);
-                        let layout = super::create_pipeline_layout(device);
-                        device
-                            .create_compute_pipeline(
-                                &wgpu::ComputePipelineDescriptor {
-                                    label: Some("Compute Pipeline main2"),
-                                    layout: Some(&layout),
-                                    module: &module,
-                                    entry_point: "main2",
-                                    compilation_options: Default::default(),
-                                    cache: Default::default(),
-                                },
-                            )
                     }
                 }
             },
