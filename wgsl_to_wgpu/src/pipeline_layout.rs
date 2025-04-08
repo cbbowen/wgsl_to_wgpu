@@ -86,7 +86,7 @@ fn define_create_render_pipeline(
                     layout: Some(&self.layout),
                     vertex: wgpu::VertexState {
                             module,
-                            entry_point: #entry_name,
+                            entry_point: Some(#entry_name),
                             compilation_options: compilation_options.clone(),
                             buffers: &[#(#vertex_buffer_layouts),*],
                     },
@@ -96,7 +96,7 @@ fn define_create_render_pipeline(
                     fragment: Some(
                         wgpu::FragmentState {
                             module,
-                            entry_point: fragment_entry,
+                            entry_point: Some(fragment_entry),
                             compilation_options,
                             targets,
                         }
@@ -190,7 +190,7 @@ fn define_create_compute_pipeline(entry: &naga::EntryPoint) -> PipelineData {
                     label: None,
                     layout: Some(&self.layout),
                     module,
-                    entry_point: #entry_name,
+                    entry_point: Some(#entry_name),
                     compilation_options,
                     cache,
             })

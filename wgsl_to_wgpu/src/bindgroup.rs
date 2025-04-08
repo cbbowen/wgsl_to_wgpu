@@ -187,11 +187,11 @@ fn bind_group_layout(
             
             impl #group_name {
                 pub fn set(&self, pass: &mut wgpu::RenderPass) {
-                    pass.set_bind_group(#group_no, self, &[]);
+                    pass.set_bind_group(#group_no, &**self, &[]);
                 }
 
                 pub fn set_compute(&self, pass: &mut wgpu::ComputePass) {
-                    pass.set_bind_group(#group_no, self, &[]);
+                    pass.set_bind_group(#group_no, &**self, &[]);
                 }
             }
 

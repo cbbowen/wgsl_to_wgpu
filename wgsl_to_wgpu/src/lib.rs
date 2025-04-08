@@ -340,7 +340,7 @@ mod test {
                 ) -> wgpu::FragmentState<'a> {
                     wgpu::FragmentState {
                         module,
-                        entry_point: entry.entry_point,
+                        entry_point: Some(entry.entry_point),
                         targets: &entry.targets,
                         compilation_options: wgpu::PipelineCompilationOptions {
                             constants: &entry.constants,

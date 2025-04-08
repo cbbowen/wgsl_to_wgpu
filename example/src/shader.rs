@@ -55,10 +55,10 @@ impl std::ops::Deref for BindGroup0 {
 }
 impl BindGroup0 {
     pub fn set(&self, pass: &mut wgpu::RenderPass) {
-        pass.set_bind_group(0u32, self, &[]);
+        pass.set_bind_group(0u32, &**self, &[]);
     }
     pub fn set_compute(&self, pass: &mut wgpu::ComputePass) {
-        pass.set_bind_group(0u32, self, &[]);
+        pass.set_bind_group(0u32, &**self, &[]);
     }
 }
 #[bon::bon]
@@ -136,10 +136,10 @@ impl std::ops::Deref for BindGroup1 {
 }
 impl BindGroup1 {
     pub fn set(&self, pass: &mut wgpu::RenderPass) {
-        pass.set_bind_group(1u32, self, &[]);
+        pass.set_bind_group(1u32, &**self, &[]);
     }
     pub fn set_compute(&self, pass: &mut wgpu::ComputePass) {
-        pass.set_bind_group(1u32, self, &[]);
+        pass.set_bind_group(1u32, &**self, &[]);
     }
 }
 #[bon::bon]
@@ -352,7 +352,7 @@ impl PipelineLayout {
             layout: Some(&self.layout),
             vertex: wgpu::VertexState {
                 module,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 compilation_options: compilation_options.clone(),
                 buffers: &[VertexInput::vertex_buffer_layout(in_step_mode)],
             },
@@ -361,7 +361,7 @@ impl PipelineLayout {
             multisample,
             fragment: Some(wgpu::FragmentState {
                 module,
-                entry_point: fragment_entry,
+                entry_point: Some(fragment_entry),
                 compilation_options,
                 targets,
             }),

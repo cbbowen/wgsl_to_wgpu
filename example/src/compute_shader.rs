@@ -32,10 +32,10 @@ impl std::ops::Deref for BindGroup0 {
 }
 impl BindGroup0 {
     pub fn set(&self, pass: &mut wgpu::RenderPass) {
-        pass.set_bind_group(0u32, self, &[]);
+        pass.set_bind_group(0u32, &**self, &[]);
     }
     pub fn set_compute(&self, pass: &mut wgpu::ComputePass) {
-        pass.set_bind_group(0u32, self, &[]);
+        pass.set_bind_group(0u32, &**self, &[]);
     }
 }
 #[bon::bon]
@@ -184,7 +184,7 @@ impl PipelineLayout {
             label: None,
             layout: Some(&self.layout),
             module,
-            entry_point: "main",
+            entry_point: Some("main"),
             compilation_options,
             cache,
         })

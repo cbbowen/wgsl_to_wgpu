@@ -30,7 +30,7 @@ struct State {
 impl State {
     async fn new(window: Window) -> Self {
         let window = Arc::new(window);
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
@@ -280,8 +280,8 @@ impl State {
         );
 
         // Use this function to ensure all bind groups are set.
-        render_pass.set_bind_group(0, &self.bind_group0, &[]);
-        render_pass.set_bind_group(1, &self.bind_group1, &[]);
+        render_pass.set_bind_group(0, &*self.bind_group0, &[]);
+        render_pass.set_bind_group(1, &*self.bind_group1, &[]);
 
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.draw(0..3, 0..1);
