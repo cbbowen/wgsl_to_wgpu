@@ -49,11 +49,15 @@ fn convert_overridable_constant_to_f64(ty: &naga::Type, value: TokenStream) -> T
     }
 }
 
-fn convert_overridable_constant_to_pair(module: &naga::Module, o: &Override, value: TokenStream) -> TokenStream {
+fn convert_overridable_constant_to_pair(
+    module: &naga::Module,
+    o: &Override,
+    value: TokenStream,
+) -> TokenStream {
     let key = override_key(o);
     let ty = &module.types[o.ty];
     let value = convert_overridable_constant_to_f64(ty, value);
-    quote!((#key.to_owned(), #value))
+    quote!((#key, #value))
 }
 
 pub fn pipeline_overridable_constants(module: &naga::Module) -> TokenStream {
@@ -100,7 +104,7 @@ pub fn pipeline_overridable_constants(module: &naga::Module) -> TokenStream {
         }
 
         impl OverrideConstants {
-            pub fn constants(&self) -> std::collections::HashMap<String, f64> {
+            pub fn constants(&self) -> Vec<(&'static str, f64)> {
                 [#(#entries),*].into_iter().filter_map(|a| a).collect()
             }
         }
@@ -183,49 +187,37 @@ mod tests {
 
         assert_tokens_eq!(
             quote! {
-                #[derive(Default)]
+                #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
                 pub struct OverrideConstants {
                     pub b1: Option<bool>,
                     pub b2: Option<bool>,
                     pub b3: bool,
-                    pub f1: Option<f32>,
-                    pub f2: f32,
+                    pub f1: Option<ordered_float::OrderedFloat<f32>>,
+                    pub f2: ordered_float::OrderedFloat<f32>,
                     pub i1: Option<i32>,
                     pub i2: i32,
                     pub i3: Option<i32>,
-                    pub a: Option<f32>,
-                    pub b: Option<f32>,
+                    pub a: Option<ordered_float::OrderedFloat<f32>>,
+                    pub b: Option<ordered_float::OrderedFloat<f32>>,
                 }
 
                 impl OverrideConstants {
-                    pub fn constants(&self) -> std::collections::HashMap<String, f64> {
-                        let mut entries = std::collections::HashMap::from([
-                            ("b3".to_owned(), if self.b3 { 1.0 } else { 0.0 }),
-                            ("f2".to_owned(), self.f2 as f64),
-                            ("i2".to_owned(), self.i2 as f64)
-                        ]);
-                        if let Some(value) = self.b1 {
-                            entries.insert("b1".to_owned(), if value { 1.0 } else { 0.0 });
-                        };
-                        if let Some(value) = self.b2 {
-                            entries.insert("b2".to_owned(), if value { 1.0 } else { 0.0 });
-                        };
-                        if let Some(value) = self.f1 {
-                            entries.insert("f1".to_owned(), value as f64);
-                        };
-                        if let Some(value) = self.i1 {
-                            entries.insert("i1".to_owned(), value as f64);
-                        };
-                        if let Some(value) = self.i3 {
-                            entries.insert("i3".to_owned(), value as f64);
-                        };
-                        if let Some(value) = self.a {
-                            entries.insert("0".to_owned(), value as f64);
-                        };
-                        if let Some(value) = self.b {
-                            entries.insert("35".to_owned(), value as f64);
-                        }
-                        entries
+                    pub fn constants(&self) -> Vec<(&'static str, f64)> {
+                        [
+                            self.b1.map(|v| ("b1", if v { 1f64 } else { 0f64 })),
+                            self.b2.map(|v| ("b2", if v { 1f64 } else { 0f64 })),
+                            Some(("b3", if self.b3 { 1f64 } else { 0f64 })),
+                            self.f1.map(|v| ("f1", v.into_inner() as f64)),
+                            Some(("f2", self.f2.into_inner() as f64)),
+                            self.i1.map(|v| ("i1", v as f64)),
+                            Some(("i2", self.i2 as f64)),
+                            self.i3.map(|v| ("i3", v as f64)),
+                            self.a.map(|v| ("0", v.into_inner() as f64)),
+                            self.b.map(|v| ("35", v.into_inner() as f64)),
+                        ]
+                        .into_iter()
+                        .filter_map(|a| a)
+                        .collect()
                     }
                 }
             },
@@ -242,6 +234,17 @@ mod tests {
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
         let actual = pipeline_overridable_constants(&module);
-        assert_tokens_eq!(quote!(), actual);
+        assert_tokens_eq!(
+            quote! {
+                #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+                pub struct OverrideConstants {}
+                impl OverrideConstants {
+                    pub fn constants(&self) -> Vec<(&'static str, f64)> {
+                        [].into_iter().filter_map(|a| a).collect()
+                    }
+                }
+            },
+            actual
+        );
     }
 }

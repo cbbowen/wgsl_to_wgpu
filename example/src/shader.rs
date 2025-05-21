@@ -21,14 +21,10 @@ pub struct OverrideConstants {
     pub scale: Option<ordered_float::OrderedFloat<f32>>,
 }
 impl OverrideConstants {
-    pub fn constants(&self) -> std::collections::HashMap<String, f64> {
+    pub fn constants(&self) -> Vec<(&'static str, f64)> {
         [
-            Some((
-                "force_black".to_owned(),
-                if self.force_black { 1f64 } else { 0f64 },
-            )),
-            self.scale
-                .map(|v| ("scale".to_owned(), v.into_inner() as f64)),
+            Some(("force_black", if self.force_black { 1f64 } else { 0f64 })),
+            self.scale.map(|v| ("scale", v.into_inner() as f64)),
         ]
         .into_iter()
         .filter_map(|a| a)

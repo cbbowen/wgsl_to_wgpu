@@ -1,6 +1,4 @@
-use crate::{
-    quote_shader_stages, wgsl::buffer_binding_type, CreateModuleError,
-};
+use crate::{quote_shader_stages, wgsl::buffer_binding_type, CreateModuleError};
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{quote, ToTokens};
 use std::collections::BTreeMap;
@@ -30,13 +28,7 @@ pub fn bind_groups_module(
 ) -> (TokenStream, Vec<BindGroup>) {
     let (bind_group_layouts, bind_groups): (Vec<_>, Vec<_>) = bind_group_data
         .iter()
-        .map(|(group_no, group)| {
-            bind_group_layout(
-                *group_no,
-                group,
-                shader_stages,
-            )
-        })
+        .map(|(group_no, group)| bind_group_layout(*group_no, group, shader_stages))
         .unzip();
 
     // Create a module to avoid name conflicts with user structs.
@@ -184,7 +176,7 @@ fn bind_group_layout(
                     &self.0
                 }
             }
-            
+
             impl #group_name {
                 pub fn set(&self, pass: &mut wgpu::RenderPass) {
                     pass.set_bind_group(#group_no, &**self, &[]);

@@ -67,8 +67,8 @@ pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTyp
             MatrixVectorTypes::Rust { ordered: true } if require_ordered_float(scalar.kind) => {
                 let ty = rust_scalar_type(scalar);
                 quote!(ordered_float::OrderedFloat<#ty>)
-            },
-            _ => rust_scalar_type(scalar)
+            }
+            _ => rust_scalar_type(scalar),
         },
         naga::TypeInner::Vector { size, scalar } => match format {
             MatrixVectorTypes::Rust { .. } => rust_vector_type(*size, scalar.kind, scalar.width),

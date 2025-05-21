@@ -8,7 +8,7 @@ pub struct Uniforms {
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OverrideConstants {}
 impl OverrideConstants {
-    pub fn constants(&self) -> std::collections::HashMap<String, f64> {
+    pub fn constants(&self) -> Vec<(&'static str, f64)> {
         [].into_iter().filter_map(|a| a).collect()
     }
 }

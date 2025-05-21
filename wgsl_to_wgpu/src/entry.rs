@@ -143,9 +143,4 @@ fn vertex_input_structs(module: &naga::Module) -> Vec<TokenStream> {
 }
 
 #[cfg(test)]
-mod test {
-    
-
-    
-    
-}
+mod test {}

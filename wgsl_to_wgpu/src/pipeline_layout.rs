@@ -31,10 +31,7 @@ fn define_render_pipeline_key(entry_name: &str, step_args: &[Ident]) -> (TokenSt
     )
 }
 
-fn define_create_render_pipeline(
-    module: &naga::Module,
-    entry: &naga::EntryPoint,
-) -> PipelineData {
+fn define_create_render_pipeline(module: &naga::Module, entry: &naga::EntryPoint) -> PipelineData {
     let structs = super::wgsl::vertex_entry_structs(entry, module);
     let entry_name = &entry.name;
 
