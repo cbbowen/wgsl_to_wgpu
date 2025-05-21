@@ -54,11 +54,10 @@ pub fn buffer_binding_type(storage: naga::AddressSpace) -> TokenStream {
 }
 
 pub fn require_ordered_float(kind: naga::ScalarKind) -> bool {
-    match kind {
-        naga::ScalarKind::Float => true,
-        naga::ScalarKind::AbstractFloat => true,
-        _ => false,
-    }
+    matches!(
+        kind,
+        naga::ScalarKind::Float | naga::ScalarKind::AbstractFloat
+    )
 }
 
 pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTypes) -> TokenStream {

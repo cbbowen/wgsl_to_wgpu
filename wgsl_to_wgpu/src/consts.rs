@@ -96,6 +96,12 @@ pub fn pipeline_overridable_constants(module: &naga::Module) -> TokenStream {
         })
         .collect();
 
+    let constants = if entries.is_empty() {
+        quote!(vec![])
+    } else {
+        quote!([#(#entries),*].into_iter().flatten().collect())
+    };
+
     // Create a Rust struct that can initialize the constants dictionary.
     quote! {
         #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -105,7 +111,7 @@ pub fn pipeline_overridable_constants(module: &naga::Module) -> TokenStream {
 
         impl OverrideConstants {
             pub fn constants(&self) -> Vec<(&'static str, f64)> {
-                [#(#entries),*].into_iter().filter_map(|a| a).collect()
+                #constants
             }
         }
     }
@@ -216,7 +222,7 @@ mod tests {
                             self.b.map(|v| ("35", v.into_inner() as f64)),
                         ]
                         .into_iter()
-                        .filter_map(|a| a)
+                        .flatten()
                         .collect()
                     }
                 }
@@ -240,7 +246,7 @@ mod tests {
                 pub struct OverrideConstants {}
                 impl OverrideConstants {
                     pub fn constants(&self) -> Vec<(&'static str, f64)> {
-                        [].into_iter().filter_map(|a| a).collect()
+                        vec![]
                     }
                 }
             },

@@ -17,6 +17,7 @@ fn define_render_pipeline_key(entry_name: &str, step_args: &[Ident]) -> (TokenSt
     (
         quote! {
             #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+            #[allow(non_camel_case_types)]
             struct #name {
                 #(#step_args: wgpu::VertexStepMode,)*
                 overrides: OverrideConstants,
@@ -137,8 +138,7 @@ fn define_create_render_pipeline(module: &naga::Module, entry: &naga::EntryPoint
     }
 }
 
-// TODO: Figure out the most ergonomic place to output this.
-fn workgroup_size(e: &naga::EntryPoint) -> TokenStream {
+fn define_workgroup_size_constant(e: &naga::EntryPoint) -> TokenStream {
     let name = Ident::new(
         &format!("{}_WORKGROUP_SIZE", e.name.to_uppercase()),
         Span::call_site(),
@@ -154,6 +154,7 @@ fn define_compute_pipeline_key(entry_name: &str) -> (TokenStream, Ident) {
     (
         quote! {
             #[derive(Clone, PartialEq, Eq, Hash)]
+            #[allow(non_camel_case_types)]
             struct #name {
                 overrides: OverrideConstants,
             }
@@ -170,7 +171,11 @@ fn define_create_compute_pipeline(entry: &naga::EntryPoint) -> PipelineData {
     let function_name = Ident::new(&format!("{}_pipeline", entry_name), Span::call_site());
     let from_key_name = Ident::new(&format!("{}_from_key", entry_name), Span::call_site());
 
+    let workgroup_size_constant = define_workgroup_size_constant(entry);
+
     let pipeline_impl_definitions = quote! {
+        #workgroup_size_constant
+
         fn #from_key_name(
             &self,
             #pipeline_key { overrides } : #pipeline_key,
@@ -280,7 +285,7 @@ pub fn define_pipeline_layout(module: &naga::Module, bind_groups: &[BindGroup]) 
             }
 
             pub fn bind_group_layouts(&self) -> &#bind_group_layouts_type {
-                            &self.bind_group_layouts
+                &self.bind_group_layouts
             }
 
             #(#pipeline_impl_definitions)*

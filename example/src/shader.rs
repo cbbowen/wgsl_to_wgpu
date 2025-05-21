@@ -27,7 +27,7 @@ impl OverrideConstants {
             self.scale.map(|v| ("scale", v.into_inner() as f64)),
         ]
         .into_iter()
-        .filter_map(|a| a)
+        .flatten()
         .collect()
     }
 }
@@ -187,6 +187,7 @@ impl VertexInput {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FragmentEntry {
+    #[allow(non_camel_case_types)]
     fs_main {
         targets: [Option<wgpu::ColorTargetState>; 1usize],
     },
@@ -195,7 +196,6 @@ impl FragmentEntry {
     pub fn entry_point_and_targets(&self) -> (&'static str, &[Option<wgpu::ColorTargetState>]) {
         match self {
             Self::fs_main { targets } => ("fs_main", targets),
-            _ => unreachable!(),
         }
     }
 }
@@ -294,6 +294,7 @@ impl std::ops::Deref for PipelineLayout {
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
 struct PipelineKey_vs_main {
     in_step_mode: wgpu::VertexStepMode,
     overrides: OverrideConstants,

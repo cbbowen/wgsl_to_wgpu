@@ -3,8 +3,6 @@ use proc_macro2::{Literal, Span, TokenStream};
 use quote::quote;
 use syn::Ident;
 
-use crate::wgsl::vertex_entry_structs;
-
 pub fn fragment_target_count(module: &Module, f: &Function) -> usize {
     match &f.result {
         Some(r) => match &r.binding {
@@ -31,17 +29,6 @@ pub fn fragment_target_count(module: &Module, f: &Function) -> usize {
     }
 }
 
-pub fn vertex_inputs(
-    entry_point: &naga::EntryPoint,
-    module: &naga::Module,
-) -> Vec<(String, Ident)> {
-    let vertex_inputs = vertex_entry_structs(entry_point, module);
-    vertex_inputs
-        .into_iter()
-        .map(|input| (input.name, input.type_name))
-        .collect()
-}
-
 pub fn entry_point_constants(module: &naga::Module) -> TokenStream {
     let fragment_state = {
         let (variants, entries): (Vec<TokenStream>, Vec<TokenStream>) = module
@@ -63,17 +50,25 @@ pub fn entry_point_constants(module: &naga::Module) -> TokenStream {
             })
             .unzip();
 
+        let match_entries = if entries.is_empty() {
+            quote!(unreachable!())
+        } else {
+            quote! {
+                match self { #(#entries,)* }
+            }
+        };
+
         quote! {
             #[derive(Clone, Debug, PartialEq, Eq, Hash)]
             pub enum FragmentEntry {
-                #(#variants),*
+                #(
+                    #[allow(non_camel_case_types)]
+                    #variants
+                ),*
             }
             impl FragmentEntry {
                 pub fn entry_point_and_targets(&self) -> (&'static str, &[Option<wgpu::ColorTargetState>]) {
-                    match self {
-                        #(#entries,)*
-                        _ => unreachable!(),
-                    }
+                    #match_entries
                 }
             }
         }

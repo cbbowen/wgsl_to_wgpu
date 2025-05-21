@@ -17,7 +17,7 @@ pub struct Input1 {
 pub struct OverrideConstants {}
 impl OverrideConstants {
     pub fn constants(&self) -> Vec<(&'static str, f64)> {
-        [].into_iter().filter_map(|a| a).collect()
+        vec![]
     }
 }
 impl Input0 {
@@ -85,9 +85,7 @@ impl Input1 {
 pub enum FragmentEntry {}
 impl FragmentEntry {
     pub fn entry_point_and_targets(&self) -> (&'static str, &[Option<wgpu::ColorTargetState>]) {
-        match self {
-            _ => unreachable!(),
-        }
+        unreachable!()
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -167,6 +165,7 @@ impl std::ops::Deref for PipelineLayout {
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
 struct PipelineKey_vs_main_none {
     overrides: OverrideConstants,
     primitive: wgpu::PrimitiveState,
@@ -176,6 +175,7 @@ struct PipelineKey_vs_main_none {
     multiview: Option<std::num::NonZero<u32>>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
 struct PipelineKey_vs_main_single {
     in0_step_mode: wgpu::VertexStepMode,
     overrides: OverrideConstants,
@@ -186,6 +186,7 @@ struct PipelineKey_vs_main_single {
     multiview: Option<std::num::NonZero<u32>>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
 struct PipelineKey_vs_main_multiple {
     in0_step_mode: wgpu::VertexStepMode,
     in1_step_mode: wgpu::VertexStepMode,

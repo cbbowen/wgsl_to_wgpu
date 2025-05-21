@@ -239,53 +239,54 @@ impl State {
                 label: Some("Render Encoder"),
             });
 
-        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("Compute Pass"),
-            timestamp_writes: None,
-        });
-        compute_pass.set_pipeline(&self.compute_pipeline);
-        self.compute_bind_group.set_compute(&mut compute_pass);
-        compute_pass.dispatch_workgroups(1, 1, 1);
-        drop(compute_pass);
+        {
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Compute Pass"),
+                timestamp_writes: None,
+            });
+            compute_pass.set_pipeline(&self.compute_pipeline);
+            self.compute_bind_group.set_compute(&mut compute_pass);
+            compute_pass.dispatch_workgroups(1, 1, 1);
+        }
 
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &output_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &output_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
 
-        render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_pipeline(&self.pipeline);
 
-        // Push constant data also needs to follow alignment rules.
-        let mut push_constant_bytes = UniformBuffer::new(Vec::new());
-        push_constant_bytes
-            .write(&shader::PushConstants {
-                color_matrix: glam::Mat4::IDENTITY,
-            })
-            .unwrap();
-        render_pass.set_push_constants(
-            wgpu::ShaderStages::VERTEX_FRAGMENT,
-            0,
-            &push_constant_bytes.into_inner(),
-        );
+            // Push constant data also needs to follow alignment rules.
+            let mut push_constant_bytes = UniformBuffer::new(Vec::new());
+            push_constant_bytes
+                .write(&shader::PushConstants {
+                    color_matrix: glam::Mat4::IDENTITY,
+                })
+                .unwrap();
+            render_pass.set_push_constants(
+                wgpu::ShaderStages::VERTEX_FRAGMENT,
+                0,
+                &push_constant_bytes.into_inner(),
+            );
 
-        // Use this function to ensure all bind groups are set.
-        render_pass.set_bind_group(0, &*self.bind_group0, &[]);
-        render_pass.set_bind_group(1, &*self.bind_group1, &[]);
+            // Use this function to ensure all bind groups are set.
+            self.bind_group0.set(&mut render_pass);
+            self.bind_group1.set(&mut render_pass);
 
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.draw(0..3, 0..1);
-
-        drop(render_pass);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.draw(0..3, 0..1);
+        }
         self.queue.submit(iter::once(encoder.finish()));
 
         // Actually draw the frame.

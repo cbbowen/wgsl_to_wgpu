@@ -1,4 +1,6 @@
-use crate::{quote_shader_stages, wgsl::buffer_binding_type, CreateModuleError};
+use crate::{
+    indexed_name_to_ident, quote_shader_stages, wgsl::buffer_binding_type, CreateModuleError,
+};
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{quote, ToTokens};
 use std::collections::BTreeMap;
@@ -146,8 +148,8 @@ fn bind_group_layout(
     group: &GroupData,
     shader_stages: wgpu::ShaderStages,
 ) -> (TokenStream, BindGroup) {
-    let layout_name = Ident::new(&format!("BindGroupLayout{group_no}"), Span::call_site());
-    let group_name = Ident::new(&format!("BindGroup{group_no}"), Span::call_site());
+    let layout_name = indexed_name_to_ident("BindGroupLayout", group_no);
+    let group_name = indexed_name_to_ident("BindGroup", group_no);
     let (new_def, new_args) = bind_group_layout_new(group, shader_stages);
 
     let create_bind_group = bind_group_layout_create_bind_group(&group_name, group);

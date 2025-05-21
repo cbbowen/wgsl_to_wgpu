@@ -2,11 +2,12 @@
 pub struct OverrideConstants {}
 impl OverrideConstants {
     pub fn constants(&self) -> Vec<(&'static str, f64)> {
-        [].into_iter().filter_map(|a| a).collect()
+        vec![]
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FragmentEntry {
+    #[allow(non_camel_case_types)]
     fs_main { targets: [Option<wgpu::ColorTargetState>; 0usize] },
 }
 impl FragmentEntry {
@@ -15,7 +16,6 @@ impl FragmentEntry {
     ) -> (&'static str, &[Option<wgpu::ColorTargetState>]) {
         match self {
             Self::fs_main { targets } => ("fs_main", targets),
-            _ => unreachable!(),
         }
     }
 }

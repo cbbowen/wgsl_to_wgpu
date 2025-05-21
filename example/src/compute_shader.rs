@@ -9,7 +9,7 @@ pub struct Uniforms {
 pub struct OverrideConstants {}
 impl OverrideConstants {
     pub fn constants(&self) -> Vec<(&'static str, f64)> {
-        [].into_iter().filter_map(|a| a).collect()
+        vec![]
     }
 }
 #[derive(Debug)]
@@ -73,9 +73,7 @@ impl BindGroupLayout0 {
 pub enum FragmentEntry {}
 impl FragmentEntry {
     pub fn entry_point_and_targets(&self) -> (&'static str, &[Option<wgpu::ColorTargetState>]) {
-        match self {
-            _ => unreachable!(),
-        }
+        unreachable!()
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -146,6 +144,7 @@ impl std::ops::Deref for PipelineLayout {
     }
 }
 #[derive(Clone, PartialEq, Eq, Hash)]
+#[allow(non_camel_case_types)]
 struct PipelineKey_main {
     overrides: OverrideConstants,
 }
@@ -168,6 +167,7 @@ impl PipelineLayout {
     pub fn bind_group_layouts(&self) -> &(BindGroupLayout0,) {
         &self.bind_group_layouts
     }
+    pub const MAIN_WORKGROUP_SIZE: [u32; 3] = [1, 1, 1];
     fn main_from_key(
         &self,
         PipelineKey_main { overrides }: PipelineKey_main,

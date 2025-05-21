@@ -179,19 +179,19 @@ pub fn create_shader_module_tokens(
     module: &naga::Module,
     options: WriteOptions,
 ) -> Result<TokenStream, CreateModuleError> {
-    let bind_group_data = get_bind_group_data(&module)?;
-    let shader_stages = wgsl::shader_stages(&module);
+    let bind_group_data = get_bind_group_data(module)?;
+    let shader_stages = wgsl::shader_stages(module);
 
     // Write all the structs, including uniforms and entry function inputs.
-    let structs = structs::structs(&module, options);
-    let consts = consts::consts(&module);
+    let structs = structs::structs(module, options);
+    let consts = consts::consts(module);
     let (bind_groups_module, bind_groups) = bind_groups_module(&bind_group_data, shader_stages);
-    let vertex_module = vertex_struct_methods(&module);
-    let entry_point_constants = entry_point_constants(&module);
+    let vertex_module = vertex_struct_methods(module);
+    let entry_point_constants = entry_point_constants(module);
 
-    let push_constant_range = push_constant_range(&module, shader_stages);
+    let push_constant_range = push_constant_range(module, shader_stages);
 
-    let override_constants = pipeline_overridable_constants(&module);
+    let override_constants = pipeline_overridable_constants(module);
 
     let shader_definition = shader::define_shader(module, &bind_groups, push_constant_range);
     let pipeline_layout = pipeline_layout::define_pipeline_layout(module, &bind_groups);
@@ -331,11 +331,12 @@ mod test {
                 pub struct OverrideConstants {}
                 impl OverrideConstants {
                     pub fn constants(&self) -> Vec<(&'static str, f64)> {
-                        [].into_iter().filter_map(|a| a).collect()
+                        vec![]
                     }
                 }
                 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
                 pub enum FragmentEntry {
+                    #[allow(non_camel_case_types)]
                     fs_main {
                         targets: [Option<wgpu::ColorTargetState>; 0usize],
                     },
@@ -343,8 +344,7 @@ mod test {
                 impl FragmentEntry {
                     pub fn entry_point_and_targets(&self) -> (&'static str, &[Option<wgpu::ColorTargetState>]) {
                         match self {
-                            Self::fs_main { targets } => ("fs_main", targets),
-                            _ => unreachable!(),
+                            Self::fs_main { targets } => ("fs_main", targets)
                         }
                     }
                 }
