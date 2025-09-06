@@ -332,8 +332,8 @@ fn storage_access(access: naga::StorageAccess) -> TokenStream {
 }
 
 pub fn get_bind_group_data(
-    module: &naga::Module,
-) -> Result<BTreeMap<u32, GroupData>, CreateModuleError> {
+    module: &'_ naga::Module,
+) -> Result<BTreeMap<u32, GroupData<'_>>, CreateModuleError> {
     // Use a BTree to sort type and field names by group index.
     // This isn't strictly necessary but makes the generated code cleaner.
     let mut groups = BTreeMap::new();

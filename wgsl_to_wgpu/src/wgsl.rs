@@ -374,6 +374,9 @@ mod tests {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        assert_eq!(wgpu::ShaderStages::all(), shader_stages(&module));
+        assert_eq!(
+            wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT | wgpu::ShaderStages::COMPUTE,
+            shader_stages(&module)
+        );
     }
 }
