@@ -79,8 +79,8 @@ impl State {
 
         // Set overrideable constant values or use shader defaults if None.
         let overrides = shader::OverrideConstants {
-            force_black: false,
-            scale: None,
+            // force_black: false,
+            // scale: None,
         };
 
         // let pipeline = render_pipeline_layout.vs_main_pipeline(in_step_mode, overrides, primitive, depth_stencil, multisample, fragment, multiview, cache)
@@ -106,7 +106,10 @@ impl State {
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::all(),
+                usage: wgpu::TextureUsages::COPY_DST
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             },
             wgpu::util::TextureDataOrder::LayerMajor,

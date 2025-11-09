@@ -16,11 +16,14 @@ pub fn consts(module: &naga::Module) -> Vec<TokenStream> {
         .filter_map(|(_, t)| -> Option<TokenStream> {
             let name = Ident::new(t.name.as_ref()?, Span::call_site());
 
-            // TODO: Add support for f64 and f16 once naga supports them.
             let type_and_value = match &module.global_expressions[t.init] {
                 naga::Expression::Literal(literal) => match literal {
-                    naga::Literal::F64(v) => Some(quote!(f32 = #v)),
+                    naga::Literal::F64(v) => Some(quote!(f64 = #v)),
                     naga::Literal::F32(v) => Some(quote!(f32 = #v)),
+                    naga::Literal::F16(v) => {
+                        let v = v.to_f64();
+                        Some(quote!(::half::f16 = ::half::f16::from_f64_const(#v)))
+                    },
                     naga::Literal::U32(v) => Some(quote!(u32 = #v)),
                     naga::Literal::I32(v) => Some(quote!(i32 = #v)),
                     naga::Literal::U64(v) => Some(quote!(u64 = #v)),
@@ -133,11 +136,12 @@ mod tests {
     #[test]
     fn write_global_constants() {
         let source = indoc! {r#"
+            enable f16;
+
             const INT_CONST = 12;
             const UNSIGNED_CONST = 34u;
-            const FLOAT_CONST = 0.1;
-            // TODO: Naga doesn't implement f16, even though it's in the WGSL spec
-            // const SMALL_FLOAT_CONST:f16 = 0.1h;
+            const FLOAT_CONST = 0.5;
+            const SMALL_FLOAT_CONST: f16 = 0.5h;
             const BOOL_CONST = true;
 
             @fragment
@@ -154,9 +158,10 @@ mod tests {
 
         assert_tokens_eq!(
             quote! {
-                pub const INT_CONST: i32 = 12i32;
+                // pub const INT_CONST: i32 = 12i32;
                 pub const UNSIGNED_CONST: u32 = 34u32;
-                pub const FLOAT_CONST: f32 = 0.1f32;
+                // pub const FLOAT_CONST: f32 = 0.5f32;
+                pub const SMALL_FLOAT_CONST: ::half::f16 = ::half::f16::from_f64_const(0.5f64);
                 pub const BOOL_CONST: bool = true;
             },
             actual

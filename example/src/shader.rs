@@ -15,20 +15,13 @@ pub struct Uniforms {
 pub struct PushConstants {
     pub color_matrix: glam::Mat4,
 }
+pub const force_black: bool = false;
+pub const scale: f32 = 1f32;
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct OverrideConstants {
-    pub force_black: bool,
-    pub scale: Option<ordered_float::OrderedFloat<f32>>,
-}
+pub struct OverrideConstants {}
 impl OverrideConstants {
     pub fn constants(&self) -> Vec<(&'static str, f64)> {
-        [
-            Some(("force_black", if self.force_black { 1f64 } else { 0f64 })),
-            self.scale.map(|v| ("scale", v.into_inner() as f64)),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
+        vec![]
     }
 }
 #[derive(Debug)]
@@ -219,7 +212,7 @@ impl std::ops::Deref for Shader {
 }
 #[bon::bon]
 impl Shader {
-    pub const SOURCE : & 'static str = "struct VertexInput {\n    @location(0) position: vec3<f32>,\n}\n\nstruct VertexOutput {\n    @builtin(position) clip_position: vec4<f32>,\n    @location(0) tex_coords: vec2<f32>,\n}\n\nstruct Uniforms {\n    color_rgb: vec3<f32>,\n}\n\nstruct PushConstants {\n    color_matrix: mat4x4<f32>,\n}\n\noverride force_black: bool;\noverride scale: f32 = 1f;\n\n@group(0) @binding(0) \nvar color_texture: texture_2d<f32>;\n@group(0) @binding(1) \nvar color_sampler: sampler;\n@group(1) @binding(0) \nvar<uniform> uniforms: Uniforms;\nvar<push_constant> constants: PushConstants;\n\n@vertex \nfn vs_main(in: VertexInput) -> VertexOutput {\n    var out: VertexOutput;\n\n    out.clip_position = vec4<f32>(in.position.xyz, 1f);\n    out.tex_coords = ((in.position.xy * 0.5f) + vec2(0.5f));\n    let _e15: VertexOutput = out;\n    return _e15;\n}\n\n@fragment \nfn fs_main(in_1: VertexOutput) -> @location(0) vec4<f32> {\n    let _e4: vec4<f32> = textureSample(color_texture, color_sampler, in_1.tex_coords);\n    let color: vec3<f32> = _e4.xyz;\n    if force_black {\n        return vec4(0f);\n    } else {\n        let _e11: mat4x4<f32> = constants.color_matrix;\n        let _e14: vec3<f32> = uniforms.color_rgb;\n        return (_e11 * vec4<f32>(((color * _e14.xyz) * scale), 1f));\n    }\n}\n" ;
+    pub const SOURCE : & 'static str = "struct VertexInput {\n    @location(0) position: vec3<f32>,\n}\n\nstruct VertexOutput {\n    @builtin(position) clip_position: vec4<f32>,\n    @location(0) tex_coords: vec2<f32>,\n}\n\nstruct Uniforms {\n    color_rgb: vec3<f32>,\n}\n\nstruct PushConstants {\n    color_matrix: mat4x4<f32>,\n}\n\nconst force_black: bool = false;\nconst scale: f32 = 1f;\n\n@group(0) @binding(0) \nvar color_texture: texture_2d<f32>;\n@group(0) @binding(1) \nvar color_sampler: sampler;\n@group(1) @binding(0) \nvar<uniform> uniforms: Uniforms;\nvar<push_constant> constants: PushConstants;\n\n@vertex \nfn vs_main(in: VertexInput) -> VertexOutput {\n    var out: VertexOutput;\n\n    out.clip_position = vec4<f32>(in.position.xyz, 1f);\n    out.tex_coords = ((in.position.xy * 0.5f) + vec2(0.5f));\n    let _e15: VertexOutput = out;\n    return _e15;\n}\n\n@fragment \nfn fs_main(in_1: VertexOutput) -> @location(0) vec4<f32> {\n    let _e4: vec4<f32> = textureSample(color_texture, color_sampler, in_1.tex_coords);\n    let color: vec3<f32> = _e4.xyz;\n    if force_black {\n        return vec4(0f);\n    } else {\n        let _e11: mat4x4<f32> = constants.color_matrix;\n        let _e14: vec3<f32> = uniforms.color_rgb;\n        return (_e11 * vec4<f32>(((color * _e14.xyz) * scale), 1f));\n    }\n}\n" ;
     pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,

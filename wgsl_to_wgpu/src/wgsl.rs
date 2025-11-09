@@ -12,6 +12,8 @@ pub fn shader_stages(module: &naga::Module) -> wgpu::ShaderStages {
             naga::ShaderStage::Vertex => wgpu::ShaderStages::VERTEX,
             naga::ShaderStage::Fragment => wgpu::ShaderStages::FRAGMENT,
             naga::ShaderStage::Compute => wgpu::ShaderStages::COMPUTE,
+            naga::ShaderStage::Task => wgpu::ShaderStages::TASK,
+            naga::ShaderStage::Mesh => wgpu::ShaderStages::MESH,
         })
         .collect()
 }
@@ -103,6 +105,7 @@ pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTyp
         } => {
             panic!("Runtime-sized arrays can only be used in variable declarations or as the last field of a struct.");
         }
+        naga::TypeInner::Array { .. } => todo!(),
         naga::TypeInner::Struct {
             members: _,
             span: _,
@@ -111,8 +114,8 @@ pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTyp
             quote!(#name)
         }
         naga::TypeInner::BindingArray { base: _, size: _ } => todo!(),
-        naga::TypeInner::AccelerationStructure => todo!(),
-        naga::TypeInner::RayQuery => todo!(),
+        naga::TypeInner::AccelerationStructure { .. } => todo!(),
+        naga::TypeInner::RayQuery { .. } => todo!(),
     }
 }
 

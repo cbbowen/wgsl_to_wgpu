@@ -5,14 +5,14 @@ edition = "2021"
 
 [dependencies]
 winit = "0.30"
-wgpu = "26.0"
+wgpu = { workspace = true }
 futures = "0.3"
-bytemuck = { version = "1.16", features = ["derive"] }
-encase = { version = "0.11", features = ["glam"] }
+bytemuck = { version = "1.24", features = ["derive"] }
+encase = { version = "0.12" }
 # This must match the version supported by encase.
-glam = { version = "0.30", features = ["bytemuck"] }
-bon = "3.5"
-ordered-float = "5.0"
+glam = { version = "0.30", features = ["bytemuck", "encase"] }
+bon = "3.8"
+ordered-float = "5.1"
 
 [build-dependencies]
 wgsl_to_wgpu = { path = "../wgsl_to_wgpu" }

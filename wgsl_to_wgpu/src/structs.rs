@@ -221,7 +221,7 @@ fn struct_members(
                 let element_type =
                     rust_type(module, &module.types[*base], options.matrix_vector_types);
                 quote!(
-                    #[size(runtime)]
+                    #[shader(size(runtime))]
                     pub #member_name: Vec<#element_type>
                 )
             } else {
@@ -502,7 +502,7 @@ mod tests {
                 #[derive(Debug, Clone, PartialEq, encase::ShaderType)]
                 pub struct RtsStruct {
                     pub other_data: i32,
-                    #[size(runtime)]
+                    #[shader(size(runtime))]
                     pub the_array: Vec<u32>,
                 }
             },

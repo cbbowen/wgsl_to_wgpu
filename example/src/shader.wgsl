@@ -34,8 +34,11 @@ struct PushConstants {
 
 var<push_constant> constants: PushConstants;
 
-override force_black: bool;
-override scale: f32 = 1.0;
+// https://github.com/gfx-rs/wgpu/pull/6310
+// override force_black: bool;
+// override scale: f32 = 1.0;
+const force_black: bool = false;
+const scale: f32 = 1.0;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

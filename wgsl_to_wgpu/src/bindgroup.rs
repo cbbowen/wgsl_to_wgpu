@@ -284,6 +284,8 @@ fn bind_group_layout_entry(
                         view_dimension: #view_dim,
                     })
                 }
+                #[allow(clippy::unneeded_struct_pattern)]
+                naga::ImageClass::External { .. } => todo!()
             }
         }
         naga::TypeInner::Sampler { comparison } => {

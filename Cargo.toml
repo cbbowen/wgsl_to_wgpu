@@ -2,3 +2,7 @@
 # wgpu requires the newer resolver
 resolver = "2"
 members = ["wgsl_to_wgpu", "example"]
+
+[workspace.dependencies]
+wgpu = "27.0"
+wgpu-types = "27.0"
