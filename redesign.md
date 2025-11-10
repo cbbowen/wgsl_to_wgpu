@@ -57,7 +57,7 @@ struct PipelineKey {
 	overrides: OverrideConstants,
 	multisample: wgpu::MultisampleState,
 	depth_stencil: Option<wgpu::DepthStencilState>,
-	multiview: Option<NonZero<u32>>,
+	multiview_mask: Option<NonZero<u32>>,
 }
 
 #[bon]
@@ -79,7 +79,7 @@ impl PipelineLayout {
 		#[builder(default)] multisample: wgpu::MultisampleState,
 		#[builder(default)] primitive: wgpu::PrimitiveState,
 		depth_stencil: Option<wgpu::DepthStencilState>,
-		multiview: Option<NonZero<u32>>,
+		multiview_mask: Option<NonZero<u32>>,
 		cache: Option<&wgpu::PipelineCache>,
 	) -> Arc<VsMainPipeline>;
 

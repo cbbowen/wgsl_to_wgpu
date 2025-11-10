@@ -105,7 +105,7 @@ impl std::ops::Deref for Shader {
 }
 #[bon::bon]
 impl Shader {
-    pub const SOURCE : & 'static str = "struct Input0_ {\n    @location(0) in0_: vec4<f32>,\n    @location(1) in1_: vec4<f32>,\n    @location(2) in2_: vec4<f32>,\n}\n\nstruct Input1_ {\n    @location(3) in3_: vec4<f32>,\n    @location(4) in4_: vec4<f32>,\n    @builtin(vertex_index) index: u32,\n    @location(5) in5_: vec4<f32>,\n    @location(6) @interpolate(flat) in6_: vec4<u32>,\n}\n\n@vertex \nfn vs_main_none() -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n\n@vertex \nfn vs_main_single(in0_: Input0_) -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n\n@vertex \nfn vs_main_multiple(in0_1: Input0_, in1_: Input1_, @builtin(instance_index) in2_: u32, @location(7) in3_: vec4<f32>) -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n" ;
+    pub const SOURCE : & 'static str = "struct Input0_ {\n    @location(0) @align(16) in0_: vec4<f32>,\n    @location(1) @align(16) in1_: vec4<f32>,\n    @location(2) @align(32) in2_: vec4<f32>,\n}\n\nstruct Input1_ {\n    @location(3) @align(16) in3_: vec4<f32>,\n    @location(4) @align(16) in4_: vec4<f32>,\n    @builtin(vertex_index) @align(32) index: u32,\n    @location(5) @align(16) in5_: vec4<f32>,\n    @location(6) @interpolate(flat) @align(64) in6_: vec4<u32>,\n}\n\n@vertex \nfn vs_main_none() -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n\n@vertex \nfn vs_main_single(in0_: Input0_) -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n\n@vertex \nfn vs_main_multiple(in0_1: Input0_, in1_: Input1_, @builtin(instance_index) in2_: u32, @location(7) in3_: vec4<f32>) -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n" ;
     pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
@@ -172,7 +172,7 @@ struct PipelineKey_vs_main_none {
     depth_stencil: Option<wgpu::DepthStencilState>,
     multisample: wgpu::MultisampleState,
     fragment: FragmentEntry,
-    multiview: Option<std::num::NonZero<u32>>,
+    multiview_mask: Option<std::num::NonZero<u32>>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
@@ -183,7 +183,7 @@ struct PipelineKey_vs_main_single {
     depth_stencil: Option<wgpu::DepthStencilState>,
     multisample: wgpu::MultisampleState,
     fragment: FragmentEntry,
-    multiview: Option<std::num::NonZero<u32>>,
+    multiview_mask: Option<std::num::NonZero<u32>>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types)]
@@ -195,7 +195,7 @@ struct PipelineKey_vs_main_multiple {
     depth_stencil: Option<wgpu::DepthStencilState>,
     multisample: wgpu::MultisampleState,
     fragment: FragmentEntry,
-    multiview: Option<std::num::NonZero<u32>>,
+    multiview_mask: Option<std::num::NonZero<u32>>,
 }
 #[bon::bon]
 impl PipelineLayout {
@@ -226,7 +226,7 @@ impl PipelineLayout {
             depth_stencil,
             multisample,
             fragment,
-            multiview,
+            multiview_mask,
         }: PipelineKey_vs_main_none,
         cache: Option<&wgpu::PipelineCache>,
     ) -> wgpu::RenderPipeline {
@@ -256,7 +256,7 @@ impl PipelineLayout {
                 compilation_options,
                 targets,
             }),
-            multiview,
+            multiview_mask,
             cache,
         })
     }
@@ -268,7 +268,7 @@ impl PipelineLayout {
         depth_stencil: Option<wgpu::DepthStencilState>,
         #[builder(default)] multisample: wgpu::MultisampleState,
         fragment: FragmentEntry,
-        multiview: Option<std::num::NonZero<u32>>,
+        multiview_mask: Option<std::num::NonZero<u32>>,
         cache: Option<&wgpu::PipelineCache>,
     ) -> std::sync::Arc<wgpu::RenderPipeline> {
         let key = PipelineKey_vs_main_none {
@@ -277,7 +277,7 @@ impl PipelineLayout {
             depth_stencil,
             multisample,
             fragment,
-            multiview,
+            multiview_mask,
         };
         self.vs_main_none_pipelines
             .lock()
@@ -297,7 +297,7 @@ impl PipelineLayout {
             depth_stencil,
             multisample,
             fragment,
-            multiview,
+            multiview_mask,
         }: PipelineKey_vs_main_single,
         cache: Option<&wgpu::PipelineCache>,
     ) -> wgpu::RenderPipeline {
@@ -327,7 +327,7 @@ impl PipelineLayout {
                 compilation_options,
                 targets,
             }),
-            multiview,
+            multiview_mask,
             cache,
         })
     }
@@ -340,7 +340,7 @@ impl PipelineLayout {
         depth_stencil: Option<wgpu::DepthStencilState>,
         #[builder(default)] multisample: wgpu::MultisampleState,
         fragment: FragmentEntry,
-        multiview: Option<std::num::NonZero<u32>>,
+        multiview_mask: Option<std::num::NonZero<u32>>,
         cache: Option<&wgpu::PipelineCache>,
     ) -> std::sync::Arc<wgpu::RenderPipeline> {
         let key = PipelineKey_vs_main_single {
@@ -350,7 +350,7 @@ impl PipelineLayout {
             depth_stencil,
             multisample,
             fragment,
-            multiview,
+            multiview_mask,
         };
         self.vs_main_single_pipelines
             .lock()
@@ -371,7 +371,7 @@ impl PipelineLayout {
             depth_stencil,
             multisample,
             fragment,
-            multiview,
+            multiview_mask,
         }: PipelineKey_vs_main_multiple,
         cache: Option<&wgpu::PipelineCache>,
     ) -> wgpu::RenderPipeline {
@@ -404,7 +404,7 @@ impl PipelineLayout {
                 compilation_options,
                 targets,
             }),
-            multiview,
+            multiview_mask,
             cache,
         })
     }
@@ -418,7 +418,7 @@ impl PipelineLayout {
         depth_stencil: Option<wgpu::DepthStencilState>,
         #[builder(default)] multisample: wgpu::MultisampleState,
         fragment: FragmentEntry,
-        multiview: Option<std::num::NonZero<u32>>,
+        multiview_mask: Option<std::num::NonZero<u32>>,
         cache: Option<&wgpu::PipelineCache>,
     ) -> std::sync::Arc<wgpu::RenderPipeline> {
         let key = PipelineKey_vs_main_multiple {
@@ -429,7 +429,7 @@ impl PipelineLayout {
             depth_stencil,
             multisample,
             fragment,
-            multiview,
+            multiview_mask,
         };
         self.vs_main_multiple_pipelines
             .lock()

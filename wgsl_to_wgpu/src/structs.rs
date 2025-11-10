@@ -95,7 +95,6 @@ fn rust_struct(
 
     let layout = layouter[t_handle];
 
-    // TODO: Does the Rust alignment matter if it's copied to a buffer anyway?
     let struct_size = Literal::usize_unsuffixed(layout.size as usize);
     let assert_size_text = format!("size of {} does not match WGSL", t.name.as_ref().unwrap());
     let assert_size = quote! {
@@ -162,10 +161,16 @@ fn rust_struct(
         quote!()
     };
 
-    let repr_c = if !has_rts_array {
+    let repr_c = if has_rts_array {
+        quote!()
+    } else if !is_host_shareable || options.derive_bytemuck_host_shareable {
+        // TODO: We should probably just get rid of the `derive_bytemuck_host_shareable`` option rather than have alignment correctness vary with it.
         quote!(#[repr(C)])
     } else {
-        quote!()
+        let aligned_size = layout.alignment.round_up(layout.size);
+        let alignment = 1 << aligned_size.trailing_zeros();
+        let alignment = Literal::u32_unsuffixed(alignment);
+        quote!(#[repr(C, align(#alignment))])
     };
     quote! {
         #repr_c
@@ -465,7 +470,7 @@ mod tests {
 
         assert_tokens_eq!(
             quote! {
-                #[repr(C)]
+                #[repr(C, align(8))]
                 #[derive(Debug, Copy, Clone, PartialEq)]
                 pub struct Atomics {
                     pub num: u32,

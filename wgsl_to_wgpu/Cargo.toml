@@ -10,8 +10,8 @@ readme = "../README.md"
 edition = "2021"
 
 [dependencies]
-naga = { version = "27.0", features = ["wgsl-in", "wgsl-out"] }
-# naga = { git = "https://github.com/cbbowen/wgpu.git", features = ["wgsl-in", "wgsl-out"] }
+# naga = { version = "27.0", features = ["wgsl-in", "wgsl-out"] }
+naga = { git = "https://github.com/cbbowen/wgpu.git", branch = "support_align_in_wgsl_out", features = ["wgsl-in", "wgsl-out"] }
 wgpu-types = { workspace = true }
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"

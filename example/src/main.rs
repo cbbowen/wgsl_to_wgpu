@@ -83,7 +83,6 @@ impl State {
             // scale: None,
         };
 
-        // let pipeline = render_pipeline_layout.vs_main_pipeline(in_step_mode, overrides, primitive, depth_stencil, multisample, fragment, multiview, cache)
         let pipeline = render_pipeline_layout
             .vs_main_pipeline(wgpu::VertexStepMode::Vertex)
             .fragment(shader::FragmentEntry::fs_main {
@@ -267,6 +266,7 @@ impl State {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.pipeline);

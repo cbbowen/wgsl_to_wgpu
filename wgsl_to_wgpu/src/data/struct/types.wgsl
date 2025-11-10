@@ -72,5 +72,10 @@ struct Nested {
 }
 var<uniform> i: Nested;
 
+struct Aligned {
+    @align(256) a: u32,
+};
+var<uniform> aligned: Aligned;
+
 @fragment
 fn main() {}

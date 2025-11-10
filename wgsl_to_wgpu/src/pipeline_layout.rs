@@ -25,7 +25,7 @@ fn define_render_pipeline_key(entry_name: &str, step_args: &[Ident]) -> (TokenSt
                 depth_stencil: Option<wgpu::DepthStencilState>,
                 multisample: wgpu::MultisampleState,
                 fragment: FragmentEntry,
-                multiview: Option<std::num::NonZero<u32>>,
+                multiview_mask: Option<std::num::NonZero<u32>>,
             }
         },
         name,
@@ -67,7 +67,7 @@ fn define_create_render_pipeline(module: &naga::Module, entry: &naga::EntryPoint
                     depth_stencil,
                     multisample,
                     fragment,
-                    multiview
+                    multiview_mask
                 } : #pipeline_key,
                 cache: Option<&wgpu::PipelineCache>,
         ) -> wgpu::RenderPipeline {
@@ -99,7 +99,7 @@ fn define_create_render_pipeline(module: &naga::Module, entry: &naga::EntryPoint
                             targets,
                         }
                     ),
-                    multiview,
+                    multiview_mask,
                     cache,
             })
         }
@@ -113,7 +113,7 @@ fn define_create_render_pipeline(module: &naga::Module, entry: &naga::EntryPoint
                 depth_stencil: Option<wgpu::DepthStencilState>,
                 #[builder(default)] multisample: wgpu::MultisampleState,
                 fragment: FragmentEntry,
-                multiview: Option<std::num::NonZero<u32>>,
+                multiview_mask: Option<std::num::NonZero<u32>>,
                 cache: Option<&wgpu::PipelineCache>,
         ) -> std::sync::Arc<wgpu::RenderPipeline> {
             let key = #pipeline_key {
@@ -123,7 +123,7 @@ fn define_create_render_pipeline(module: &naga::Module, entry: &naga::EntryPoint
                 depth_stencil,
                 multisample,
                 fragment,
-                multiview
+                multiview_mask
             };
             self.#pipeline_cache.lock().unwrap().entry(key).or_insert_with_key(
                 |key| std::sync::Arc::new(self.#from_key_name(key.clone(), cache))
