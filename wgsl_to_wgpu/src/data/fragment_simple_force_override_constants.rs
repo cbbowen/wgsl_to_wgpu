@@ -7,7 +7,7 @@ impl OverrideConstants {
     }
 }
 pub const ENTRY_FS_MAIN: &str = "fs_main";
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FragmentEntry<const N: usize> {
     pub entry_point: &'static str,
     pub targets: [Option<wgpu::ColorTargetState>; N],

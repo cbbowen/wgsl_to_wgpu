@@ -61,7 +61,7 @@ fn bind_group_layout_new(
     (
         quote! {
             pub fn new(
-                device: std::sync::Arc<wgpu::Device>,
+                device: wgpu::Device,
                 #(#args_without_attrs),*
             ) -> Self {
                 let layout = device.create_bind_group_layout(
@@ -157,9 +157,9 @@ fn bind_group_layout(
 
     (
         quote! {
-            #[derive(Debug)]
+            #[derive(Clone, Debug)]
             pub struct #layout_name {
-                device: std::sync::Arc<wgpu::Device>,
+                device: wgpu::Device,
                 layout: wgpu::BindGroupLayout,
             }
 
@@ -170,6 +170,7 @@ fn bind_group_layout(
                 }
             }
 
+            #[derive(Clone, Debug)]
             pub struct #group_name(wgpu::BindGroup);
 
             impl std::ops::Deref for #group_name {

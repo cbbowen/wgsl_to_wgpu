@@ -1,6 +1,6 @@
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BindGroupLayout0 {
-    device: std::sync::Arc<wgpu::Device>,
+    device: wgpu::Device,
     layout: wgpu::BindGroupLayout,
 }
 impl std::ops::Deref for BindGroupLayout0 {
@@ -9,6 +9,7 @@ impl std::ops::Deref for BindGroupLayout0 {
         &self.layout
     }
 }
+#[derive(Clone, Debug)]
 pub struct BindGroup0(wgpu::BindGroup);
 impl std::ops::Deref for BindGroup0 {
     type Target = wgpu::BindGroup;
@@ -26,7 +27,7 @@ impl BindGroup0 {
 }
 #[bon::bon]
 impl BindGroupLayout0 {
-    pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+    pub fn new(device: wgpu::Device) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
@@ -92,9 +93,9 @@ impl BindGroupLayout0 {
         BindGroup0(bind_group)
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BindGroupLayout1 {
-    device: std::sync::Arc<wgpu::Device>,
+    device: wgpu::Device,
     layout: wgpu::BindGroupLayout,
 }
 impl std::ops::Deref for BindGroupLayout1 {
@@ -103,6 +104,7 @@ impl std::ops::Deref for BindGroupLayout1 {
         &self.layout
     }
 }
+#[derive(Clone, Debug)]
 pub struct BindGroup1(wgpu::BindGroup);
 impl std::ops::Deref for BindGroup1 {
     type Target = wgpu::BindGroup;
@@ -120,7 +122,7 @@ impl BindGroup1 {
 }
 #[bon::bon]
 impl BindGroupLayout1 {
-    pub fn new(device: std::sync::Arc<wgpu::Device>, texture_filterable: bool) -> Self {
+    pub fn new(device: wgpu::Device, texture_filterable: bool) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[

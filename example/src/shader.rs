@@ -24,9 +24,9 @@ impl OverrideConstants {
         vec![]
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BindGroupLayout0 {
-    device: std::sync::Arc<wgpu::Device>,
+    device: wgpu::Device,
     layout: wgpu::BindGroupLayout,
 }
 impl std::ops::Deref for BindGroupLayout0 {
@@ -35,6 +35,7 @@ impl std::ops::Deref for BindGroupLayout0 {
         &self.layout
     }
 }
+#[derive(Clone, Debug)]
 pub struct BindGroup0(wgpu::BindGroup);
 impl std::ops::Deref for BindGroup0 {
     type Target = wgpu::BindGroup;
@@ -53,7 +54,7 @@ impl BindGroup0 {
 #[bon::bon]
 impl BindGroupLayout0 {
     pub fn new(
-        device: std::sync::Arc<wgpu::Device>,
+        device: wgpu::Device,
         color_texture_filterable: bool,
         color_sampler_filtering: wgpu::SamplerBindingType,
     ) -> Self {
@@ -105,9 +106,9 @@ impl BindGroupLayout0 {
         BindGroup0(bind_group)
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BindGroupLayout1 {
-    device: std::sync::Arc<wgpu::Device>,
+    device: wgpu::Device,
     layout: wgpu::BindGroupLayout,
 }
 impl std::ops::Deref for BindGroupLayout1 {
@@ -116,6 +117,7 @@ impl std::ops::Deref for BindGroupLayout1 {
         &self.layout
     }
 }
+#[derive(Clone, Debug)]
 pub struct BindGroup1(wgpu::BindGroup);
 impl std::ops::Deref for BindGroup1 {
     type Target = wgpu::BindGroup;
@@ -133,7 +135,7 @@ impl BindGroup1 {
 }
 #[bon::bon]
 impl BindGroupLayout1 {
-    pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+    pub fn new(device: wgpu::Device) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -198,10 +200,10 @@ struct PipelineLayoutKey {
     color_sampler_filtering: wgpu::SamplerBindingType,
 }
 pub struct Shader {
-    device: std::sync::Arc<wgpu::Device>,
-    shader_module: std::sync::Arc<wgpu::ShaderModule>,
-    pipeline_layout_cache: std::sync::Mutex<
-        std::collections::HashMap<PipelineLayoutKey, std::sync::Arc<PipelineLayout>>,
+    device: wgpu::Device,
+    shader_module: wgpu::ShaderModule,
+    pipeline_layout_cache: std::sync::Arc<
+        std::sync::Mutex<std::collections::HashMap<PipelineLayoutKey, PipelineLayout>>,
     >,
 }
 impl std::ops::Deref for Shader {
@@ -213,12 +215,11 @@ impl std::ops::Deref for Shader {
 #[bon::bon]
 impl Shader {
     pub const SOURCE : & 'static str = "struct VertexInput {\n    @location(0) @align(16) position: vec3<f32>,\n}\n\nstruct VertexOutput {\n    @builtin(position) @align(32) clip_position: vec4<f32>,\n    @location(0) @align(16) tex_coords: vec2<f32>,\n}\n\nstruct Uniforms {\n    @align(16) color_rgb: vec3<f32>,\n}\n\nstruct PushConstants {\n    @align(64) color_matrix: mat4x4<f32>,\n}\n\nconst FORCE_BLACK: bool = false;\nconst SCALE: f32 = 1f;\n\n@group(0) @binding(0) \nvar color_texture: texture_2d<f32>;\n@group(0) @binding(1) \nvar color_sampler: sampler;\n@group(1) @binding(0) \nvar<uniform> uniforms: Uniforms;\nvar<push_constant> constants: PushConstants;\n\n@vertex \nfn vs_main(in: VertexInput) -> VertexOutput {\n    var out: VertexOutput;\n\n    out.clip_position = vec4<f32>(in.position.xyz, 1f);\n    out.tex_coords = ((in.position.xy * 0.5f) + vec2(0.5f));\n    let _e15: VertexOutput = out;\n    return _e15;\n}\n\n@fragment \nfn fs_main(in_1: VertexOutput) -> @location(0) vec4<f32> {\n    let _e4: vec4<f32> = textureSample(color_texture, color_sampler, in_1.tex_coords);\n    let color: vec3<f32> = _e4.xyz;\n    if FORCE_BLACK {\n        return vec4(0f);\n    } else {\n        let _e11: mat4x4<f32> = constants.color_matrix;\n        let _e14: vec3<f32> = uniforms.color_rgb;\n        return (_e11 * vec4<f32>(((color * _e14.xyz) * SCALE), 1f));\n    }\n}\n" ;
-    pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+    pub fn new(device: wgpu::Device) -> Self {
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(Self::SOURCE)),
         });
-        let shader_module = std::sync::Arc::new(shader_module);
         Self {
             device,
             shader_module,
@@ -258,7 +259,7 @@ impl Shader {
         #[builder(default = true)] color_texture_filterable: bool,
         # [builder (default = wgpu :: SamplerBindingType :: Filtering)]
         color_sampler_filtering: wgpu::SamplerBindingType,
-    ) -> std::sync::Arc<PipelineLayout> {
+    ) -> PipelineLayout {
         let key = PipelineLayoutKey {
             color_texture_filterable,
             color_sampler_filtering,
@@ -267,17 +268,18 @@ impl Shader {
             .lock()
             .unwrap()
             .entry(key)
-            .or_insert_with_key(|key| std::sync::Arc::new(self.create_pipeline_layout(key.clone())))
+            .or_insert_with_key(|key| self.create_pipeline_layout(key.clone()))
             .clone()
     }
 }
+#[derive(Clone, Debug)]
 pub struct PipelineLayout {
-    device: std::sync::Arc<wgpu::Device>,
-    shader_module: std::sync::Arc<wgpu::ShaderModule>,
+    device: wgpu::Device,
+    shader_module: wgpu::ShaderModule,
     layout: wgpu::PipelineLayout,
     bind_group_layouts: (BindGroupLayout0, BindGroupLayout1),
-    vs_main_pipelines: std::sync::Mutex<
-        std::collections::HashMap<PipelineKey_vs_main, std::sync::Arc<wgpu::RenderPipeline>>,
+    vs_main_pipelines: std::sync::Arc<
+        std::sync::Mutex<std::collections::HashMap<PipelineKey_vs_main, wgpu::RenderPipeline>>,
     >,
 }
 impl std::ops::Deref for PipelineLayout {
@@ -300,8 +302,8 @@ struct PipelineKey_vs_main {
 #[bon::bon]
 impl PipelineLayout {
     pub fn new(
-        device: std::sync::Arc<wgpu::Device>,
-        shader_module: std::sync::Arc<wgpu::ShaderModule>,
+        device: wgpu::Device,
+        shader_module: wgpu::ShaderModule,
         layout: wgpu::PipelineLayout,
         bind_group_layouts: (BindGroupLayout0, BindGroupLayout1),
     ) -> Self {
@@ -370,7 +372,7 @@ impl PipelineLayout {
         fragment: FragmentEntry,
         multiview_mask: Option<std::num::NonZero<u32>>,
         cache: Option<&wgpu::PipelineCache>,
-    ) -> std::sync::Arc<wgpu::RenderPipeline> {
+    ) -> wgpu::RenderPipeline {
         let key = PipelineKey_vs_main {
             in_step_mode,
             overrides,
@@ -384,9 +386,7 @@ impl PipelineLayout {
             .lock()
             .unwrap()
             .entry(key)
-            .or_insert_with_key(|key| {
-                std::sync::Arc::new(self.pipeline_vs_main_from_key(key.clone(), cache))
-            })
+            .or_insert_with_key(|key| self.pipeline_vs_main_from_key(key.clone(), cache))
             .clone()
     }
 }

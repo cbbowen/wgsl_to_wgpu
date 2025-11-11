@@ -351,11 +351,11 @@ mod test {
                 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
                 struct PipelineLayoutKey {}
                 pub struct Shader {
-                    device: std::sync::Arc<wgpu::Device>,
-                    shader_module: std::sync::Arc<wgpu::ShaderModule>,
-                    pipeline_layout_cache: std::sync::Mutex<
-                        std::collections::HashMap<PipelineLayoutKey, std::sync::Arc<PipelineLayout>>,
-                    >,
+                    device: wgpu::Device,
+                    shader_module: wgpu::ShaderModule,
+                    pipeline_layout_cache: std::sync::Arc<std::sync::Mutex<
+                        std::collections::HashMap<PipelineLayoutKey, PipelineLayout>,
+                    >>,
                 }
                 impl std::ops::Deref for Shader {
                     type Target = wgpu::ShaderModule;
@@ -367,12 +367,11 @@ mod test {
                 impl Shader {
                     pub const SOURCE: &'static str =
                         "var<push_constant> consts: vec4<f32>;\n\n@fragment \nfn fs_main() {\n    return;\n}\n";
-                    pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+                    pub fn new(device: wgpu::Device) -> Self {
                         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                             label: None,
                             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(Self::SOURCE)),
                         });
-                        let shader_module = std::sync::Arc::new(shader_module);
                         Self {
                             device,
                             shader_module,
@@ -394,19 +393,20 @@ mod test {
                         PipelineLayout::new(device, shader_module, layout, bind_group_layouts)
                     }
                     # [builder (finish_fn = get)]
-                    pub fn pipeline_layout(&self) -> std::sync::Arc<PipelineLayout> {
+                    pub fn pipeline_layout(&self) -> PipelineLayout {
                         let key = PipelineLayoutKey {};
                         self.pipeline_layout_cache
                             .lock()
                             .unwrap()
                             .entry(key)
-                            .or_insert_with_key(|key| std::sync::Arc::new(self.create_pipeline_layout(key.clone())))
+                            .or_insert_with_key(|key| self.create_pipeline_layout(key.clone()))
                             .clone()
                     }
                 }
+                #[derive(Clone, Debug)]
                 pub struct PipelineLayout {
-                    device: std::sync::Arc<wgpu::Device>,
-                    shader_module: std::sync::Arc<wgpu::ShaderModule>,
+                    device: wgpu::Device,
+                    shader_module: wgpu::ShaderModule,
                     layout: wgpu::PipelineLayout,
                     bind_group_layouts: (),
                 }
@@ -418,8 +418,8 @@ mod test {
                 }
                 impl PipelineLayout {
                     pub fn new(
-                        device: std::sync::Arc<wgpu::Device>,
-                        shader_module: std::sync::Arc<wgpu::ShaderModule>,
+                        device: wgpu::Device,
+                        shader_module: wgpu::ShaderModule,
                         layout: wgpu::PipelineLayout,
                         bind_group_layouts: (),
                     ) -> Self {
@@ -440,13 +440,6 @@ mod test {
     }
 
     #[test]
-    fn create_shader_module_embed_source() {
-        let source = include_str!("data/fragment_simple.wgsl");
-        let actual = create_shader_module(source, WriteOptions::default()).unwrap();
-        assert_eq!(include_str!("data/fragment_simple.rs"), actual);
-    }
-
-    #[test]
     fn create_shader_module_embed_source_rustfmt() {
         let source = include_str!("data/fragment_simple.wgsl");
         let actual = create_shader_module(
@@ -457,7 +450,7 @@ mod test {
             },
         )
         .unwrap();
-        assert_eq!(include_str!("data/fragment_simple_rustfmt.rs"), actual);
+        assert_eq!(include_str!("data/fragment_simple.rs"), actual);
     }
 
     #[test]

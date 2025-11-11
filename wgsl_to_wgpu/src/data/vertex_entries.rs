@@ -91,10 +91,10 @@ impl FragmentEntry {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct PipelineLayoutKey {}
 pub struct Shader {
-    device: std::sync::Arc<wgpu::Device>,
-    shader_module: std::sync::Arc<wgpu::ShaderModule>,
-    pipeline_layout_cache: std::sync::Mutex<
-        std::collections::HashMap<PipelineLayoutKey, std::sync::Arc<PipelineLayout>>,
+    device: wgpu::Device,
+    shader_module: wgpu::ShaderModule,
+    pipeline_layout_cache: std::sync::Arc<
+        std::sync::Mutex<std::collections::HashMap<PipelineLayoutKey, PipelineLayout>>,
     >,
 }
 impl std::ops::Deref for Shader {
@@ -106,12 +106,11 @@ impl std::ops::Deref for Shader {
 #[bon::bon]
 impl Shader {
     pub const SOURCE : & 'static str = "struct Input0_ {\n    @location(0) @align(16) in0_: vec4<f32>,\n    @location(1) @align(16) in1_: vec4<f32>,\n    @location(2) @align(32) in2_: vec4<f32>,\n}\n\nstruct Input1_ {\n    @location(3) @align(16) in3_: vec4<f32>,\n    @location(4) @align(16) in4_: vec4<f32>,\n    @builtin(vertex_index) @align(32) index: u32,\n    @location(5) @align(16) in5_: vec4<f32>,\n    @location(6) @interpolate(flat) @align(64) in6_: vec4<u32>,\n}\n\n@vertex \nfn vs_main_none() -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n\n@vertex \nfn vs_main_single(in0_: Input0_) -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n\n@vertex \nfn vs_main_multiple(in0_1: Input0_, in1_: Input1_, @builtin(instance_index) in2_: u32, @location(7) in3_: vec4<f32>) -> @builtin(position) vec4<f32> {\n    return vec4(0f);\n}\n" ;
-    pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+    pub fn new(device: wgpu::Device) -> Self {
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(Self::SOURCE)),
         });
-        let shader_module = std::sync::Arc::new(shader_module);
         Self {
             device,
             shader_module,
@@ -130,31 +129,33 @@ impl Shader {
         PipelineLayout::new(device, shader_module, layout, bind_group_layouts)
     }
     # [builder (finish_fn = get)]
-    pub fn pipeline_layout(&self) -> std::sync::Arc<PipelineLayout> {
+    pub fn pipeline_layout(&self) -> PipelineLayout {
         let key = PipelineLayoutKey {};
         self.pipeline_layout_cache
             .lock()
             .unwrap()
             .entry(key)
-            .or_insert_with_key(|key| std::sync::Arc::new(self.create_pipeline_layout(key.clone())))
+            .or_insert_with_key(|key| self.create_pipeline_layout(key.clone()))
             .clone()
     }
 }
+#[derive(Clone, Debug)]
 pub struct PipelineLayout {
-    device: std::sync::Arc<wgpu::Device>,
-    shader_module: std::sync::Arc<wgpu::ShaderModule>,
+    device: wgpu::Device,
+    shader_module: wgpu::ShaderModule,
     layout: wgpu::PipelineLayout,
     bind_group_layouts: (),
-    vs_main_none_pipelines: std::sync::Mutex<
-        std::collections::HashMap<PipelineKey_vs_main_none, std::sync::Arc<wgpu::RenderPipeline>>,
+    vs_main_none_pipelines: std::sync::Arc<
+        std::sync::Mutex<std::collections::HashMap<PipelineKey_vs_main_none, wgpu::RenderPipeline>>,
     >,
-    vs_main_single_pipelines: std::sync::Mutex<
-        std::collections::HashMap<PipelineKey_vs_main_single, std::sync::Arc<wgpu::RenderPipeline>>,
+    vs_main_single_pipelines: std::sync::Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<PipelineKey_vs_main_single, wgpu::RenderPipeline>,
+        >,
     >,
-    vs_main_multiple_pipelines: std::sync::Mutex<
-        std::collections::HashMap<
-            PipelineKey_vs_main_multiple,
-            std::sync::Arc<wgpu::RenderPipeline>,
+    vs_main_multiple_pipelines: std::sync::Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<PipelineKey_vs_main_multiple, wgpu::RenderPipeline>,
         >,
     >,
 }
@@ -200,8 +201,8 @@ struct PipelineKey_vs_main_multiple {
 #[bon::bon]
 impl PipelineLayout {
     pub fn new(
-        device: std::sync::Arc<wgpu::Device>,
-        shader_module: std::sync::Arc<wgpu::ShaderModule>,
+        device: wgpu::Device,
+        shader_module: wgpu::ShaderModule,
         layout: wgpu::PipelineLayout,
         bind_group_layouts: (),
     ) -> Self {
@@ -270,7 +271,7 @@ impl PipelineLayout {
         fragment: FragmentEntry,
         multiview_mask: Option<std::num::NonZero<u32>>,
         cache: Option<&wgpu::PipelineCache>,
-    ) -> std::sync::Arc<wgpu::RenderPipeline> {
+    ) -> wgpu::RenderPipeline {
         let key = PipelineKey_vs_main_none {
             overrides,
             primitive,
@@ -283,9 +284,7 @@ impl PipelineLayout {
             .lock()
             .unwrap()
             .entry(key)
-            .or_insert_with_key(|key| {
-                std::sync::Arc::new(self.pipeline_vs_main_none_from_key(key.clone(), cache))
-            })
+            .or_insert_with_key(|key| self.pipeline_vs_main_none_from_key(key.clone(), cache))
             .clone()
     }
     fn pipeline_vs_main_single_from_key(
@@ -342,7 +341,7 @@ impl PipelineLayout {
         fragment: FragmentEntry,
         multiview_mask: Option<std::num::NonZero<u32>>,
         cache: Option<&wgpu::PipelineCache>,
-    ) -> std::sync::Arc<wgpu::RenderPipeline> {
+    ) -> wgpu::RenderPipeline {
         let key = PipelineKey_vs_main_single {
             in0_step_mode,
             overrides,
@@ -356,9 +355,7 @@ impl PipelineLayout {
             .lock()
             .unwrap()
             .entry(key)
-            .or_insert_with_key(|key| {
-                std::sync::Arc::new(self.pipeline_vs_main_single_from_key(key.clone(), cache))
-            })
+            .or_insert_with_key(|key| self.pipeline_vs_main_single_from_key(key.clone(), cache))
             .clone()
     }
     fn pipeline_vs_main_multiple_from_key(
@@ -420,7 +417,7 @@ impl PipelineLayout {
         fragment: FragmentEntry,
         multiview_mask: Option<std::num::NonZero<u32>>,
         cache: Option<&wgpu::PipelineCache>,
-    ) -> std::sync::Arc<wgpu::RenderPipeline> {
+    ) -> wgpu::RenderPipeline {
         let key = PipelineKey_vs_main_multiple {
             in0_step_mode,
             in1_step_mode,
@@ -435,9 +432,7 @@ impl PipelineLayout {
             .lock()
             .unwrap()
             .entry(key)
-            .or_insert_with_key(|key| {
-                std::sync::Arc::new(self.pipeline_vs_main_multiple_from_key(key.clone(), cache))
-            })
+            .or_insert_with_key(|key| self.pipeline_vs_main_multiple_from_key(key.clone(), cache))
             .clone()
     }
 }

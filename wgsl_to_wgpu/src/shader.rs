@@ -50,10 +50,10 @@ fn define_create_pipeline_layout(
         pub fn pipeline_layout(
             &self,
             #(#all_bind_group_args,)*
-        ) -> std::sync::Arc<PipelineLayout> {
+        ) -> PipelineLayout {
             let key = PipelineLayoutKey { #(#all_bind_group_arg_names,)* };
             self.pipeline_layout_cache.lock().unwrap().entry(key).or_insert_with_key(
-                |key| std::sync::Arc::new(self.create_pipeline_layout(key.clone()))
+                |key| self.create_pipeline_layout(key.clone())
             ).clone()
         }
     }
@@ -97,13 +97,9 @@ pub fn define_shader(
         }
 
         pub struct Shader {
-            device: std::sync::Arc<wgpu::Device>,
-            shader_module: std::sync::Arc<wgpu::ShaderModule>,
-            pipeline_layout_cache:
-                std::sync::Mutex<
-                    std::collections::HashMap<
-                        PipelineLayoutKey,
-                        std::sync::Arc<PipelineLayout>>>,
+            device: wgpu::Device,
+            shader_module: wgpu::ShaderModule,
+            pipeline_layout_cache: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<PipelineLayoutKey, PipelineLayout>>>,
         }
 
         impl std::ops::Deref for Shader {
@@ -117,12 +113,11 @@ pub fn define_shader(
         impl Shader {
             pub const SOURCE: &'static str = #wgsl_source;
 
-            pub fn new(device: std::sync::Arc<wgpu::Device>) -> Self {
+            pub fn new(device: wgpu::Device) -> Self {
                 let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: None,
                     source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(Self::SOURCE)),
                 });
-                let shader_module = std::sync::Arc::new(shader_module);
                 Self {
                     device,
                     shader_module,

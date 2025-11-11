@@ -15,15 +15,15 @@ mod shader;
 struct State {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
-    device: Arc<wgpu::Device>,
+    device: wgpu::Device,
     queue: wgpu::Queue,
     size: winit::dpi::PhysicalSize<u32>,
     config: wgpu::SurfaceConfiguration,
-    pipeline: Arc<wgpu::RenderPipeline>,
+    pipeline: wgpu::RenderPipeline,
     bind_group0: shader::BindGroup0,
     bind_group1: shader::BindGroup1,
     vertex_buffer: wgpu::Buffer,
-    compute_pipeline: Arc<wgpu::ComputePipeline>,
+    compute_pipeline: wgpu::ComputePipeline,
     compute_bind_group: compute_shader::BindGroup0,
 }
 
@@ -59,7 +59,6 @@ impl State {
             })
             .await
             .unwrap();
-        let device = Arc::new(device);
 
         let size = window.inner_size();
         let caps = surface.get_capabilities(&adapter);

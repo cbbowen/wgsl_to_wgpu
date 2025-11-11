@@ -115,7 +115,7 @@ fn define_create_render_pipeline(module: &naga::Module, entry: &naga::EntryPoint
                 fragment: FragmentEntry,
                 multiview_mask: Option<std::num::NonZero<u32>>,
                 cache: Option<&wgpu::PipelineCache>,
-        ) -> std::sync::Arc<wgpu::RenderPipeline> {
+        ) -> wgpu::RenderPipeline {
             let key = #pipeline_key {
                 #(#step_args,)*
                 overrides,
@@ -126,7 +126,7 @@ fn define_create_render_pipeline(module: &naga::Module, entry: &naga::EntryPoint
                 multiview_mask
             };
             self.#pipeline_cache.lock().unwrap().entry(key).or_insert_with_key(
-                |key| std::sync::Arc::new(self.#from_key_name(key.clone(), cache))
+                |key| self.#from_key_name(key.clone(), cache)
             ).clone()
         }
     };
@@ -153,7 +153,7 @@ fn define_compute_pipeline_key(entry_name: &str) -> (TokenStream, Ident) {
     let name = Ident::new(&format!("PipelineKey_{}", entry_name), Span::call_site());
     (
         quote! {
-            #[derive(Clone, PartialEq, Eq, Hash)]
+            #[derive(Clone, Debug, PartialEq, Eq, Hash)]
             #[allow(non_camel_case_types)]
             struct #name {
                 overrides: OverrideConstants,
@@ -203,10 +203,10 @@ fn define_create_compute_pipeline(entry: &naga::EntryPoint) -> PipelineData {
             &self,
             #[builder(default)] overrides: OverrideConstants,
             cache: Option<&wgpu::PipelineCache>,
-        ) -> std::sync::Arc<wgpu::ComputePipeline> {
+        ) -> wgpu::ComputePipeline {
             let key = #pipeline_key { overrides };
             self.#pipeline_cache.lock().unwrap().entry(key).or_insert_with_key(
-                |key| std::sync::Arc::new(self.#from_key_name(key.clone(), cache))
+                |key| self.#from_key_name(key.clone(), cache)
             ).clone()
         }
     };
@@ -243,7 +243,7 @@ pub fn define_pipeline_layout(module: &naga::Module, bind_groups: &[BindGroup]) 
         .map(|data| data.pipeline_cache.clone())
         .collect();
     let pipeline_cache_field_types = pipeline_datas.iter().zip(pipeline_results.iter()).map(|(PipelineData { pipeline_key, ..}, result)|
-        quote!(std::sync::Mutex<std::collections::HashMap<#pipeline_key, std::sync::Arc<#result>>>)
+        quote!(std::sync::Arc<std::sync::Mutex<std::collections::HashMap<#pipeline_key, #result>>>)
     );
 
     let pipeline_key_definitions = pipeline_datas
@@ -260,9 +260,10 @@ pub fn define_pipeline_layout(module: &naga::Module, bind_groups: &[BindGroup]) 
     };
 
     quote! {
+        #[derive(Clone, Debug)]
         pub struct PipelineLayout {
-            device: std::sync::Arc<wgpu::Device>,
-            shader_module: std::sync::Arc<wgpu::ShaderModule>,
+            device: wgpu::Device,
+            shader_module: wgpu::ShaderModule,
             layout: wgpu::PipelineLayout,
             bind_group_layouts: #bind_group_layouts_type,
             #(#pipeline_cache_field_names: #pipeline_cache_field_types,)*
@@ -280,8 +281,8 @@ pub fn define_pipeline_layout(module: &naga::Module, bind_groups: &[BindGroup]) 
         #pipeline_layout_attributes
         impl PipelineLayout {
             pub fn new(
-                device: std::sync::Arc<wgpu::Device>,
-                shader_module: std::sync::Arc<wgpu::ShaderModule>,
+                device: wgpu::Device,
+                shader_module: wgpu::ShaderModule,
                 layout: wgpu::PipelineLayout,
                 bind_group_layouts: #bind_group_layouts_type) -> Self {
                 Self {
