@@ -253,6 +253,12 @@ pub fn define_pipeline_layout(module: &naga::Module, bind_groups: &[BindGroup]) 
         .iter()
         .map(|data| &data.pipeline_impl_definitions);
 
+    let pipeline_layout_attributes = if pipeline_datas.is_empty() {
+        quote!()
+    } else {
+        quote! { #[bon::bon] }
+    };
+
     quote! {
         pub struct PipelineLayout {
             device: std::sync::Arc<wgpu::Device>,
@@ -271,7 +277,7 @@ pub fn define_pipeline_layout(module: &naga::Module, bind_groups: &[BindGroup]) 
 
         #(#pipeline_key_definitions)*
 
-        #[bon::bon]
+        #pipeline_layout_attributes
         impl PipelineLayout {
             pub fn new(
                 device: std::sync::Arc<wgpu::Device>,

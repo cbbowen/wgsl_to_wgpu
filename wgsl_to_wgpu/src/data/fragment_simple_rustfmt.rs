@@ -83,7 +83,6 @@ impl std::ops::Deref for PipelineLayout {
         &self.layout
     }
 }
-#[bon::bon]
 impl PipelineLayout {
     pub fn new(
         device: std::sync::Arc<wgpu::Device>,

@@ -37,15 +37,15 @@ var<push_constant> constants: PushConstants;
 // https://github.com/gfx-rs/wgpu/pull/6310
 // override force_black: bool;
 // override scale: f32 = 1.0;
-const force_black: bool = false;
-const scale: f32 = 1.0;
+const FORCE_BLACK: bool = false;
+const SCALE: f32 = 1.0;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(color_texture, color_sampler, in.tex_coords).rgb;
-    if force_black {
+    if FORCE_BLACK {
         return vec4(0.0);
     } else {
-        return constants.color_matrix * vec4(color * uniforms.color_rgb.rgb * scale, 1.0);
+        return constants.color_matrix * vec4(color * uniforms.color_rgb.rgb * SCALE, 1.0);
     }
 }

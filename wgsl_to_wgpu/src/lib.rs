@@ -416,7 +416,6 @@ mod test {
                         &self.layout
                     }
                 }
-                #[bon::bon]
                 impl PipelineLayout {
                     pub fn new(
                         device: std::sync::Arc<wgpu::Device>,
