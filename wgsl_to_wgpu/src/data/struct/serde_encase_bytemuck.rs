@@ -11,8 +11,11 @@
     serde::Deserialize,
 )]
 pub struct Input0 {
+    #[shader(align(4))]
     pub a: u32,
+    #[shader(align(4))]
     pub b: i32,
+    #[shader(align(8))]
     pub c: f32,
 }
 const _: () = assert!(
@@ -44,7 +47,9 @@ const _: () = assert!(
     serde::Deserialize,
 )]
 pub struct Nested {
+    #[shader(align(16))]
     pub a: Input0,
+    #[shader(align(4))]
     pub b: f32,
 }
 const _: () = assert!(

@@ -102,7 +102,6 @@ fn rust_struct(
     };
 
     let has_rts_array = struct_has_rts_array_member(&members, module);
-    let members = struct_members(&members, module, options);
     let mut derives = Vec::new();
 
     derives.push(quote!(Debug));
@@ -140,7 +139,8 @@ fn rust_struct(
         derives.push(quote!(bytemuck::Zeroable));
     }
 
-    if options.derive_encase_host_shareable && is_host_shareable {
+    let derive_encase = options.derive_encase_host_shareable && is_host_shareable;
+    if derive_encase {
         derives.push(quote!(encase::ShaderType));
     }
 
@@ -161,17 +161,22 @@ fn rust_struct(
         quote!()
     };
 
+    let struct_alignment = {
+        let aligned_size = layout.alignment.round_up(layout.size);
+        1 << aligned_size.trailing_zeros()
+    };
     let repr_c = if has_rts_array {
         quote!()
     } else if !is_host_shareable || options.derive_bytemuck_host_shareable {
         // TODO: We should probably just get rid of the `derive_bytemuck_host_shareable`` option rather than have alignment correctness vary with it.
         quote!(#[repr(C)])
     } else {
-        let aligned_size = layout.alignment.round_up(layout.size);
-        let alignment = 1 << aligned_size.trailing_zeros();
-        let alignment = Literal::u32_unsuffixed(alignment);
+        let alignment = Literal::u32_unsuffixed(struct_alignment);
         quote!(#[repr(C, align(#alignment))])
     };
+
+    let members = struct_members(&members, struct_alignment, module, options, derive_encase);
+
     quote! {
         #repr_c
         #[derive(#(#derives),*)]
@@ -202,10 +207,20 @@ fn add_types_recursive(
     }
 }
 
+fn compute_member_alignment(struct_alignment: u32, offset: u32) -> u32 {
+    if offset == 0 {
+        struct_alignment
+    } else {
+        1 << offset.trailing_zeros()
+    }
+}
+
 fn struct_members(
     members: &[naga::StructMember],
+    struct_alignment: u32,
     module: &naga::Module,
     options: WriteOptions,
+    derive_encase: bool,
 ) -> Vec<TokenStream> {
     members
         .iter()
@@ -230,8 +245,19 @@ fn struct_members(
                     pub #member_name: Vec<#element_type>
                 )
             } else {
+                let align_attribute = if derive_encase {
+                    let alignment = compute_member_alignment(struct_alignment, member.offset);
+                    let alignment = Literal::u32_unsuffixed(alignment);
+                    quote! { #[shader(align(#alignment))] }
+                } else {
+                    quote!()
+                };
+
                 let member_type = rust_type(module, ty, options.matrix_vector_types);
-                quote!(pub #member_name: #member_type)
+                quote! {
+                    #align_attribute
+                    pub #member_name: #member_type
+                }
             }
         })
         .collect()
@@ -506,6 +532,7 @@ mod tests {
             quote! {
                 #[derive(Debug, Clone, PartialEq, encase::ShaderType)]
                 pub struct RtsStruct {
+                    #[shader(align(8))]
                     pub other_data: i32,
                     #[shader(size(runtime))]
                     pub the_array: Vec<u32>,

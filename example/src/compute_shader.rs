@@ -3,6 +3,7 @@
 #[repr(C, align(16))]
 #[derive(Debug, Copy, Clone, PartialEq, encase :: ShaderType)]
 pub struct Uniforms {
+    #[shader(align(16))]
     pub color_rgb: glam::Vec3,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
