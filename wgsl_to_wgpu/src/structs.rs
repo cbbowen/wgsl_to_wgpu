@@ -5,9 +5,9 @@ use proc_macro2::{Literal, Span, TokenStream};
 use quote::quote;
 use syn::Ident;
 
-use crate::{wgsl::rust_type, WriteOptions};
+use crate::{WriteOptions, wgsl::rust_type};
 
-pub fn structs(module: &naga::Module, options: WriteOptions) -> TokenStream {
+pub fn structs(module: &naga::Module, options: &WriteOptions) -> TokenStream {
     // Initialize the layout calculator provided by naga.
     let mut layouter = naga::proc::Layouter::default();
     layouter.update(module.to_ctx()).unwrap();
@@ -62,10 +62,11 @@ fn rust_struct(
     layouter: &naga::proc::Layouter,
     t_handle: naga::Handle<naga::Type>,
     module: &naga::Module,
-    options: WriteOptions,
+    options: &WriteOptions,
     global_variable_types: &HashSet<Handle<Type>>,
 ) -> TokenStream {
-    let struct_name = Ident::new(t.name.as_ref().unwrap(), Span::call_site());
+    let struct_name = t.name.as_ref().unwrap();
+    let struct_name = Ident::new(options.undecorate(struct_name), Span::call_site());
 
     // Skip builtins since they don't require user specified data.
     let members: Vec<_> = members
@@ -77,7 +78,8 @@ fn rust_struct(
     let assert_member_offsets: Vec<_> = members
         .iter()
         .map(|m| {
-            let name = Ident::new(m.name.as_ref().unwrap(), Span::call_site());
+            let name = m.name.as_ref().unwrap();
+            let name = Ident::new(options.undecorate(name), Span::call_site());
             let rust_offset = quote!(std::mem::offset_of!(#struct_name, #name));
 
             let wgsl_offset = Literal::usize_unsuffixed(m.offset as usize);
@@ -215,14 +217,15 @@ fn struct_members(
     members: &[naga::StructMember],
     struct_alignment: u32,
     module: &naga::Module,
-    options: WriteOptions,
+    options: &WriteOptions,
     derive_encase: bool,
 ) -> Vec<TokenStream> {
     members
         .iter()
         .enumerate()
         .map(|(index, member)| {
-            let member_name = Ident::new(member.name.as_ref().unwrap(), Span::call_site());
+            let member_name = member.name.as_ref().unwrap();
+            let member_name = Ident::new(options.undecorate(member_name), Span::call_site());
             let ty = &module.types[member.ty];
 
             if let naga::TypeInner::Array {
@@ -234,8 +237,12 @@ fn struct_members(
                 if index != members.len() - 1 {
                     panic!("Only the last field of a struct can be a runtime-sized array");
                 }
-                let element_type =
-                    rust_type(module, &module.types[*base], options.matrix_vector_types);
+                let element_type = rust_type(
+                    module,
+                    &module.types[*base],
+                    options.matrix_vector_types,
+                    options,
+                );
                 quote!(
                     #[shader(size(runtime))]
                     pub #member_name: Vec<#element_type>
@@ -249,7 +256,7 @@ fn struct_members(
                     quote!()
                 };
 
-                let member_type = rust_type(module, ty, options.matrix_vector_types);
+                let member_type = rust_type(module, ty, options.matrix_vector_types, options);
                 quote! {
                     #align_attribute
                     pub #member_name: #member_type
@@ -275,10 +282,10 @@ fn struct_has_rts_array_member(members: &[naga::StructMember], module: &naga::Mo
 mod tests {
     use super::*;
 
-    use crate::{assert_tokens_eq, MatrixVectorTypes, WriteOptions};
+    use crate::{MatrixVectorTypes, WriteOptions, assert_tokens_eq};
     use indoc::indoc;
 
-    fn test_structs(wgsl: &str, rust: &str, options: WriteOptions) {
+    fn test_structs(wgsl: &str, rust: &str, options: &WriteOptions) {
         let module = naga::front::wgsl::parse_str(wgsl).unwrap();
         let structs = structs(&module, options);
         assert_tokens_eq!(rust.parse().unwrap(), structs);
@@ -289,7 +296,7 @@ mod tests {
         test_structs(
             include_str!("data/struct/types.wgsl"),
             include_str!("data/struct/types.rust.rs"),
-            WriteOptions::default(),
+            &WriteOptions::default(),
         );
     }
 
@@ -298,7 +305,7 @@ mod tests {
         test_structs(
             include_str!("data/struct/types.wgsl"),
             include_str!("data/struct/types.glam.rs"),
-            WriteOptions {
+            &WriteOptions {
                 matrix_vector_types: MatrixVectorTypes::Glam,
                 ..Default::default()
             },
@@ -310,7 +317,7 @@ mod tests {
         test_structs(
             include_str!("data/struct/types.wgsl"),
             include_str!("data/struct/types.nalgebra.rs"),
-            WriteOptions {
+            &WriteOptions {
                 matrix_vector_types: MatrixVectorTypes::Nalgebra,
                 ..Default::default()
             },
@@ -322,7 +329,7 @@ mod tests {
         test_structs(
             include_str!("data/struct/encase_bytemuck.wgsl"),
             include_str!("data/struct/encase_bytemuck.rs"),
-            WriteOptions {
+            &WriteOptions {
                 derive_bytemuck_vertex: true,
                 derive_bytemuck_host_shareable: true,
                 derive_encase_host_shareable: true,
@@ -339,7 +346,7 @@ mod tests {
         test_structs(
             include_str!("data/struct/serde_encase_bytemuck.wgsl"),
             include_str!("data/struct/serde_encase_bytemuck.rs"),
-            WriteOptions {
+            &WriteOptions {
                 derive_bytemuck_vertex: true,
                 derive_bytemuck_host_shareable: true,
                 derive_encase_host_shareable: true,
@@ -379,7 +386,7 @@ mod tests {
 
         let actual = structs(
             &module,
-            WriteOptions {
+            &WriteOptions {
                 derive_bytemuck_vertex: false,
                 derive_bytemuck_host_shareable: false,
                 derive_encase_host_shareable: false,
@@ -425,7 +432,7 @@ mod tests {
 
         let actual = structs(
             &module,
-            WriteOptions {
+            &WriteOptions {
                 derive_bytemuck_vertex: true,
                 derive_bytemuck_host_shareable: true,
                 derive_encase_host_shareable: false,
@@ -456,7 +463,7 @@ mod tests {
         test_structs(
             include_str!("data/struct/bytemuck_input_layout_validation.wgsl"),
             include_str!("data/struct/bytemuck_input_layout_validation.rs"),
-            WriteOptions {
+            &WriteOptions {
                 derive_bytemuck_vertex: true,
                 derive_bytemuck_host_shareable: true,
                 derive_encase_host_shareable: false,
@@ -484,7 +491,7 @@ mod tests {
 
         let actual = structs(
             &module,
-            WriteOptions {
+            &WriteOptions {
                 matrix_vector_types: MatrixVectorTypes::Nalgebra,
                 ..Default::default()
             },
@@ -518,7 +525,7 @@ mod tests {
 
         let actual = structs(
             &module,
-            WriteOptions {
+            &WriteOptions {
                 derive_encase_host_shareable: true,
                 ..Default::default()
             },
@@ -554,7 +561,7 @@ mod tests {
 
         let _structs = structs(
             &module,
-            WriteOptions {
+            &WriteOptions {
                 ..Default::default()
             },
         );
@@ -578,7 +585,7 @@ mod tests {
 
         let _structs = structs(
             &module,
-            WriteOptions {
+            &WriteOptions {
                 derive_encase_host_shareable: true,
                 derive_bytemuck_vertex: true,
                 derive_bytemuck_host_shareable: false,
@@ -603,7 +610,7 @@ mod tests {
 
         let _structs = structs(
             &module,
-            WriteOptions {
+            &WriteOptions {
                 derive_encase_host_shareable: true,
                 derive_bytemuck_vertex: false,
                 derive_bytemuck_host_shareable: true,
@@ -629,7 +636,7 @@ mod tests {
 
         let _structs = structs(
             &module,
-            WriteOptions {
+            &WriteOptions {
                 derive_encase_host_shareable: true,
                 ..Default::default()
             },

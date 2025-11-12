@@ -79,6 +79,11 @@ pub fn define_shader(
     )
     .unwrap();
 
+    // HACK: With `EXPLICIT_TYPES`, naga even adds annotations for unnamable types, like `_frexp_result_f32_`. This breaks code like `let a = frexp(b)`.
+    let frexp_annotation =
+        regex::Regex::new(r"(let\s+[\w_][\w\d_]*)\s*:\s*_frexp_result_f32_").unwrap();
+    let wgsl_source = frexp_annotation.replace_all(&wgsl_source, "$1");
+
     let all_bind_group_args: Vec<_> = bind_groups.iter().flat_map(|g| &g.new_args).collect();
     let create_pipeline_layout =
         define_create_pipeline_layout(bind_groups, &all_bind_group_args, push_constant_range);

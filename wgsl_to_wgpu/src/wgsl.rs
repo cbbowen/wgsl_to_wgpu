@@ -1,4 +1,4 @@
-use crate::MatrixVectorTypes;
+use crate::{MatrixVectorTypes, WriteOptions};
 use naga::StructMember;
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::quote;
@@ -59,7 +59,12 @@ pub fn require_ordered_float(kind: naga::ScalarKind) -> bool {
     )
 }
 
-pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTypes) -> TokenStream {
+pub fn rust_type(
+    module: &naga::Module,
+    ty: &naga::Type,
+    format: MatrixVectorTypes,
+    options: &WriteOptions,
+) -> TokenStream {
     match &ty.inner {
         naga::TypeInner::Scalar(scalar) => match format {
             MatrixVectorTypes::Rust { ordered: true } if require_ordered_float(scalar.kind) => {
@@ -92,7 +97,7 @@ pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTyp
             size: naga::ArraySize::Constant(size),
             stride: _,
         } => {
-            let element_type = rust_type(module, &module.types[*base], format);
+            let element_type = rust_type(module, &module.types[*base], format, options);
             let count = Literal::usize_unsuffixed(size.get() as usize);
             quote!([#element_type; #count])
         }
@@ -100,14 +105,17 @@ pub fn rust_type(module: &naga::Module, ty: &naga::Type, format: MatrixVectorTyp
             size: naga::ArraySize::Dynamic,
             ..
         } => {
-            panic!("Runtime-sized arrays can only be used in variable declarations or as the last field of a struct.");
+            panic!(
+                "Runtime-sized arrays can only be used in variable declarations or as the last field of a struct."
+            );
         }
         naga::TypeInner::Array { .. } => todo!(),
         naga::TypeInner::Struct {
             members: _,
             span: _,
         } => {
-            let name = Ident::new(ty.name.as_ref().unwrap(), Span::call_site());
+            let name = ty.name.as_ref().unwrap();
+            let name = Ident::new(options.undecorate(name), Span::call_site());
             quote!(#name)
         }
         naga::TypeInner::BindingArray { base: _, size: _ } => todo!(),

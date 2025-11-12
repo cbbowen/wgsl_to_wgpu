@@ -1,4 +1,4 @@
-use crate::wgsl::VertexInput;
+use crate::{WriteOptions, wgsl::VertexInput};
 
 use super::bindgroup::BindGroup;
 use proc_macro2::{Literal, Span, TokenStream};
@@ -32,9 +32,13 @@ fn define_render_pipeline_key(entry_name: &str, step_args: &[Ident]) -> (TokenSt
     )
 }
 
-fn define_create_render_pipeline(module: &naga::Module, entry: &naga::EntryPoint) -> PipelineData {
+fn define_create_render_pipeline(
+    module: &naga::Module,
+    entry: &naga::EntryPoint,
+    options: &WriteOptions,
+) -> PipelineData {
     let structs = super::wgsl::vertex_entry_structs(entry, module);
-    let entry_name = &entry.name;
+    let entry_name = options.undecorate(&entry.name);
 
     let pipeline_cache = Ident::new(&format!("{}_pipelines", entry_name), Span::call_site());
     let function_name = Ident::new(&format!("{}_pipeline", entry_name), Span::call_site());
@@ -218,13 +222,17 @@ fn define_create_compute_pipeline(entry: &naga::EntryPoint) -> PipelineData {
     }
 }
 
-pub fn define_pipeline_layout(module: &naga::Module, bind_groups: &[BindGroup]) -> TokenStream {
+pub fn define_pipeline_layout(
+    module: &naga::Module,
+    bind_groups: &[BindGroup],
+    options: &WriteOptions,
+) -> TokenStream {
     let (pipeline_datas, pipeline_results): (Vec<_>, Vec<_>) = module
         .entry_points
         .iter()
         .filter_map(|e| match e.stage {
             naga::ShaderStage::Vertex => Some((
-                define_create_render_pipeline(module, e),
+                define_create_render_pipeline(module, e, options),
                 quote!(wgpu::RenderPipeline),
             )),
             naga::ShaderStage::Compute => Some((

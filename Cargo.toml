@@ -4,9 +4,12 @@ resolver = "2"
 members = ["wgsl_to_wgpu", "example"]
 
 [workspace.dependencies]
-# wgpu = "27.0"
-# wgpu-types = "27.0"
+wgpu = "27.0"
+wgpu-types = "27.0"
+naga = "27.0"
 
 # The WGSL backend for WGPU doesn't preserve alignment. This means it silently produce different WGSL output, leading to layout mismatches. I have a fork that fixes this, but the upstream maintainers reject changes only applicable to the WGSL -> WGSL use-case.
-wgpu = { git = "https://github.com/cbbowen/wgpu.git", branch = "support_align_in_wgsl_out" }
-wgpu-types = { git = "https://github.com/cbbowen/wgpu.git", branch = "support_align_in_wgsl_out" }
+[patch.crates-io]
+naga = { git = "https://github.com/cbbowen/wgpu.git", branch="support_align_in_wgsl_out" }
+wgpu = { git = "https://github.com/cbbowen/wgpu.git", branch="support_align_in_wgsl_out" }
+wgpu-types = { git = "https://github.com/cbbowen/wgpu.git", branch="support_align_in_wgsl_out" }

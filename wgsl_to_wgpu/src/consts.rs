@@ -4,17 +4,17 @@ use quote::quote;
 use syn::Ident;
 
 use crate::{
+    MatrixVectorTypes, WriteOptions,
     wgsl::{require_ordered_float, rust_type},
-    MatrixVectorTypes,
 };
 
-pub fn consts(module: &naga::Module) -> Vec<TokenStream> {
+pub fn consts(module: &naga::Module, options: &WriteOptions) -> Vec<TokenStream> {
     // Create matching Rust constants for WGSl constants.
     module
         .constants
         .iter()
         .filter_map(|(_, t)| -> Option<TokenStream> {
-            let name = Ident::new(t.name.as_ref()?, Span::call_site());
+            let name = Ident::new(options.undecorate(t.name.as_ref()?), Span::call_site());
 
             let type_and_value = match &module.global_expressions[t.init] {
                 naga::Expression::Literal(literal) => match literal {
@@ -23,7 +23,7 @@ pub fn consts(module: &naga::Module) -> Vec<TokenStream> {
                     naga::Literal::F16(v) => {
                         let v = v.to_f64();
                         Some(quote!(::half::f16 = ::half::f16::from_f64_const(#v)))
-                    },
+                    }
                     naga::Literal::U32(v) => Some(quote!(u32 = #v)),
                     naga::Literal::I32(v) => Some(quote!(i32 = #v)),
                     naga::Literal::U64(v) => Some(quote!(u64 = #v)),
@@ -63,18 +63,23 @@ fn convert_overridable_constant_to_pair(
     quote!((#key, #value))
 }
 
-pub fn pipeline_overridable_constants(module: &naga::Module) -> TokenStream {
+pub fn pipeline_overridable_constants(
+    module: &naga::Module,
+    options: &WriteOptions,
+) -> TokenStream {
     let overrides: Vec<_> = module.overrides.iter().map(|(_, o)| o).collect();
 
     let fields: Vec<_> = overrides
         .iter()
         .map(|o| {
-            let name = Ident::new(o.name.as_ref().unwrap(), Span::call_site());
+            let name = o.name.as_ref().unwrap();
+            let name = Ident::new(options.undecorate(name), Span::call_site());
             // TODO: Do we only need to handle scalar types here?
             let ty = rust_type(
                 module,
                 &module.types[o.ty],
                 MatrixVectorTypes::Rust { ordered: true },
+                options,
             );
 
             if o.init.is_some() {
@@ -88,7 +93,8 @@ pub fn pipeline_overridable_constants(module: &naga::Module) -> TokenStream {
     let entries: Vec<_> = overrides
         .iter()
         .map(|o| {
-            let name = Ident::new(o.name.as_ref().unwrap(), Span::call_site());
+            let name = o.name.as_ref().unwrap();
+            let name = Ident::new(options.undecorate(name), Span::call_site());
             if o.init.is_some() {
                 let pair = convert_overridable_constant_to_pair(module, o, quote!(v));
                 quote!(self.#name.map(|v| #pair))
@@ -153,7 +159,7 @@ mod tests {
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
 
-        let consts = consts(&module);
+        let consts = consts(&module, &WriteOptions::default());
         let actual = quote!(#(#consts)*);
 
         assert_tokens_eq!(
@@ -194,7 +200,7 @@ mod tests {
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
 
-        let actual = pipeline_overridable_constants(&module);
+        let actual = pipeline_overridable_constants(&module, &WriteOptions::default());
 
         assert_tokens_eq!(
             quote! {
@@ -244,7 +250,7 @@ mod tests {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = pipeline_overridable_constants(&module);
+        let actual = pipeline_overridable_constants(&module, &WriteOptions::default());
         assert_tokens_eq!(
             quote! {
                 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

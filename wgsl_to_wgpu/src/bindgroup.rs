@@ -1,8 +1,9 @@
 use crate::{
-    indexed_name_to_ident, quote_shader_stages, wgsl::buffer_binding_type, CreateModuleError,
+    CreateModuleError, WriteOptions, indexed_name_to_ident, quote_shader_stages,
+    wgsl::buffer_binding_type,
 };
 use proc_macro2::{Literal, Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use std::collections::BTreeMap;
 use syn::Ident;
 
@@ -27,10 +28,11 @@ pub struct BindGroup {
 pub fn bind_groups_module(
     bind_group_data: &BTreeMap<u32, GroupData>,
     shader_stages: wgpu::ShaderStages,
+    options: &WriteOptions,
 ) -> (TokenStream, Vec<BindGroup>) {
     let (bind_group_layouts, bind_groups): (Vec<_>, Vec<_>) = bind_group_data
         .iter()
-        .map(|(group_no, group)| bind_group_layout(*group_no, group, shader_stages))
+        .map(|(group_no, group)| bind_group_layout(*group_no, group, shader_stages, options))
         .unzip();
 
     // Create a module to avoid name conflicts with user structs.
@@ -45,12 +47,14 @@ pub fn bind_groups_module(
 fn bind_group_layout_new(
     group: &GroupData,
     shader_stages: wgpu::ShaderStages,
+    options: &WriteOptions,
 ) -> (TokenStream, Vec<syn::BareFnArg>) {
     let (entries, args): (Vec<_>, Vec<_>) = group
         .bindings
         .iter()
         .map(|binding| {
-            bind_group_layout_entry(binding.name.as_ref().unwrap(), binding, shader_stages)
+            let binding_name = binding.name.as_ref().unwrap();
+            bind_group_layout_entry(options.undecorate(binding_name), binding, shader_stages)
         })
         .unzip();
     let args: Vec<_> = args.into_iter().flatten().collect();
@@ -77,14 +81,18 @@ fn bind_group_layout_new(
     )
 }
 
-fn bind_group_layout_create_bind_group(group_name: &Ident, group: &GroupData) -> TokenStream {
+fn bind_group_layout_create_bind_group(
+    group_name: &Ident,
+    group: &GroupData,
+    options: &WriteOptions,
+) -> TokenStream {
     let (args, entries): (Vec<_>, Vec<_>) = group
         .bindings
         .iter()
         .map(|binding| {
             let binding_index = Literal::usize_unsuffixed(binding.binding_index as usize);
             let binding_name = binding.name.as_ref().unwrap();
-            let name = Ident::new(binding.name.as_ref().unwrap(), Span::call_site());
+            let name = Ident::new(options.undecorate(binding_name), Span::call_site());
             let (arg, resource) = match binding.binding_type.inner {
                 naga::TypeInner::Struct { .. }
                 | naga::TypeInner::Array { .. }
@@ -147,12 +155,13 @@ fn bind_group_layout(
     group_no: u32,
     group: &GroupData,
     shader_stages: wgpu::ShaderStages,
+    options: &WriteOptions,
 ) -> (TokenStream, BindGroup) {
     let layout_name = indexed_name_to_ident("BindGroupLayout", group_no);
     let group_name = indexed_name_to_ident("BindGroup", group_no);
-    let (new_def, new_args) = bind_group_layout_new(group, shader_stages);
+    let (new_def, new_args) = bind_group_layout_new(group, shader_stages, options);
 
-    let create_bind_group = bind_group_layout_create_bind_group(&group_name, group);
+    let create_bind_group = bind_group_layout_create_bind_group(&group_name, group, options);
     let new = syn::parse2(quote!(#layout_name::new)).unwrap();
 
     (
@@ -285,7 +294,7 @@ fn bind_group_layout_entry(
                         view_dimension: #view_dim,
                     })
                 }
-                naga::ImageClass::External =>  quote!(wgpu::BindingType::ExternalTexture)
+                naga::ImageClass::External => quote!(wgpu::BindingType::ExternalTexture),
             }
         }
         naga::TypeInner::Sampler { comparison } => {
@@ -435,7 +444,7 @@ mod tests {
     fn test_bind_groups(wgsl: &str, rust: &str, stages: wgpu::ShaderStages) {
         let module = naga::front::wgsl::parse_str(wgsl).unwrap();
         let bind_group_data = get_bind_group_data(&module).unwrap();
-        let (actual, _) = bind_groups_module(&bind_group_data, stages);
+        let (actual, _) = bind_groups_module(&bind_group_data, stages, &WriteOptions::default());
 
         assert_tokens_eq!(rust.parse().unwrap(), actual);
     }

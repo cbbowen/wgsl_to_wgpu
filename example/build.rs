@@ -13,7 +13,7 @@ fn main() {
         writeln!(&mut text, "// Changes made to this file will not be saved.").unwrap();
         text += &create_shader_module(
             &wgsl_source,
-            WriteOptions {
+            &WriteOptions {
                 derive_bytemuck_vertex: true,
                 derive_encase_host_shareable: true,
                 matrix_vector_types: MatrixVectorTypes::Glam,

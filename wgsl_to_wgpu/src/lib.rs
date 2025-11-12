@@ -25,7 +25,7 @@
 //!     };
 //!
 //!     // Generate the bindings.
-//!     let text = create_shader_module(&wgsl_source, options).unwrap();
+//!     let text = create_shader_module(&wgsl_source, &options).unwrap();
 //!     std::fs::write("src/shader.rs", text.as_bytes()).unwrap();
 //! }
 //! ```
@@ -69,7 +69,7 @@ pub enum CreateModuleError {
 
 /// Options for configuring the generated bindings to work with additional dependencies.
 /// Use [WriteOptions::default] for only requiring WGPU itself.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct WriteOptions {
     /// Derive [bytemuck::Pod](https://docs.rs/bytemuck/latest/bytemuck/trait.Pod.html#)
     /// and [bytemuck::Zeroable](https://docs.rs/bytemuck/latest/bytemuck/trait.Zeroable.html#)
@@ -108,6 +108,22 @@ pub struct WriteOptions {
     /// or the generated code is not included in the src directory,
     /// leave this at its default value of `false`.
     pub rustfmt: bool,
+
+    /// Pattern to unmangle identifiers.
+    pub undecorate_pattern: Option<regex::Regex>,
+}
+
+impl WriteOptions {
+    fn undecorate<'a>(&self, identifier: &'a str) -> &'a str {
+        if let Some(undecorate_pattern) = &self.undecorate_pattern
+            && let Some(captures) = undecorate_pattern.captures(identifier)
+        {
+            let (_, [capture]) = captures.extract();
+            capture
+        } else {
+            identifier
+        }
+    }
 }
 
 /// The format to use for matrix and vector types.
@@ -155,14 +171,14 @@ fn main() {
     };
 
     // Generate the bindings.
-    let text = wgsl_to_wgpu::create_shader_module(&wgsl_source, options).unwrap();
+    let text = wgsl_to_wgpu::create_shader_module(&wgsl_source, &options).unwrap();
     std::fs::write("src/shader.rs", text.as_bytes()).unwrap();
 }
 ```
  */
 pub fn create_shader_module(
     wgsl_source: &str,
-    options: WriteOptions,
+    options: &WriteOptions,
 ) -> Result<String, CreateModuleError> {
     let module = naga::front::wgsl::parse_str(wgsl_source).unwrap();
 
@@ -177,24 +193,25 @@ pub fn create_shader_module(
 
 pub fn create_shader_module_tokens(
     module: &naga::Module,
-    options: WriteOptions,
+    options: &WriteOptions,
 ) -> Result<TokenStream, CreateModuleError> {
     let bind_group_data = get_bind_group_data(module)?;
     let shader_stages = wgsl::shader_stages(module);
 
     // Write all the structs, including uniforms and entry function inputs.
     let structs = structs::structs(module, options);
-    let consts = consts::consts(module);
-    let (bind_groups_module, bind_groups) = bind_groups_module(&bind_group_data, shader_stages);
+    let consts = consts::consts(module, options);
+    let (bind_groups_module, bind_groups) =
+        bind_groups_module(&bind_group_data, shader_stages, options);
     let vertex_module = vertex_struct_methods(module);
     let entry_point_constants = entry_point_constants(module);
 
     let push_constant_range = push_constant_range(module, shader_stages);
 
-    let override_constants = pipeline_overridable_constants(module);
+    let override_constants = pipeline_overridable_constants(module, options);
 
     let shader_definition = shader::define_shader(module, &bind_groups, push_constant_range);
-    let pipeline_layout = pipeline_layout::define_pipeline_layout(module, &bind_groups);
+    let pipeline_layout = pipeline_layout::define_pipeline_layout(module, &bind_groups, options);
 
     Ok(quote! {
         #structs
@@ -207,6 +224,34 @@ pub fn create_shader_module_tokens(
         #pipeline_layout
     })
 }
+
+// struct NagaOilImportMap {
+//     workspace_path: std::path::PathBuf,
+// }
+
+// impl NagaOilImportMap {
+//     pub fn import_to_path(&self, import: &str) -> std::path::PathBuf {
+//         let mut result = self.workspace_path.clone();
+//         for part in import.split("::") {
+//             result.push(part);
+//         }
+//         result.add_extension("wgsl");
+//         result
+//     }
+
+//     pub fn path_to_import(&self, path: std::path::Path) -> String {
+//         let path = path.with_extension("");
+//         let path: std::path::PathBuf = self.workspace_path.join(path);
+//         let path = path.strip_prefix(self.workspace_path)?;
+//         let parts: Vec<_> = path.iter().map(|s| s.to_string_lossy()).collect();
+//         parts.join("::")
+//     }
+// }
+
+// pub fn create_naga_oil_modules(path: std::path::Path) {
+//     // naga_oil::compose::parse_imports::parse_imports(input, declared_imports)
+//     let mut composer = naga_oil::compose::Composer::default();
+// }
 
 fn push_constant_range(
     module: &naga::Module,
@@ -309,7 +354,6 @@ macro_rules! assert_tokens_eq {
 mod test {
     use super::*;
     use indoc::indoc;
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn create_shader_module_include_source() {
@@ -320,7 +364,7 @@ mod test {
             fn fs_main() {}
         "#};
 
-        let actual = create_shader_module(source, WriteOptions::default())
+        let actual = create_shader_module(source, &WriteOptions::default())
             .unwrap()
             .parse()
             .unwrap();
@@ -444,7 +488,7 @@ mod test {
         let source = include_str!("data/fragment_simple.wgsl");
         let actual = create_shader_module(
             source,
-            WriteOptions {
+            &WriteOptions {
                 rustfmt: true,
                 ..Default::default()
             },
@@ -475,7 +519,7 @@ mod test {
             fn fs_main() {}
         "#};
 
-        create_shader_module(source, WriteOptions::default()).unwrap();
+        create_shader_module(source, &WriteOptions::default()).unwrap();
     }
 
     #[test]
@@ -489,7 +533,7 @@ mod test {
             fn main() {}
         "#};
 
-        let result = create_shader_module(source, WriteOptions::default());
+        let result = create_shader_module(source, &WriteOptions::default());
         assert!(matches!(
             result,
             Err(CreateModuleError::NonConsecutiveBindGroups)
@@ -509,7 +553,7 @@ mod test {
             fn main() {}
         "#};
 
-        let result = create_shader_module(source, WriteOptions::default());
+        let result = create_shader_module(source, &WriteOptions::default());
         assert!(matches!(
             result,
             Err(CreateModuleError::DuplicateBinding { binding: 2 })
@@ -799,7 +843,7 @@ mod test {
         // Check vertex entry points and builtin attribute handling.
         let module =
             naga::front::wgsl::parse_str(include_str!("data/vertex_entries.wgsl")).unwrap();
-        let actual = create_shader_module_tokens(&module, WriteOptions::default()).unwrap();
+        let actual = create_shader_module_tokens(&module, &WriteOptions::default()).unwrap();
         let expected = include_str!("data/vertex_entries.rs").parse().unwrap();
 
         assert_tokens_eq!(expected, actual);
