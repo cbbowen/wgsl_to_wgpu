@@ -41,13 +41,10 @@ pub fn buffer_binding_type(storage: naga::AddressSpace) -> TokenStream {
         naga::AddressSpace::Storage { access } => {
             let _is_read = access.contains(naga::StorageAccess::LOAD);
             let is_write = access.contains(naga::StorageAccess::STORE);
+            let read_only = !is_write;
 
             // TODO: Is this correct?
-            if is_write {
-                quote!(wgpu::BufferBindingType::Storage { read_only: false })
-            } else {
-                quote!(wgpu::BufferBindingType::Storage { read_only: true })
-            }
+            quote!(wgpu::BufferBindingType::Storage { read_only: #read_only })
         }
         // This case is technically invalid.
         // Return a default to allow users to see the wgpu validation error.
