@@ -167,12 +167,8 @@ fn rust_struct(
     };
     let repr_c = if has_rts_array {
         quote!()
-    } else if !is_host_shareable || options.derive_bytemuck_host_shareable {
-        // TODO: We should probably just get rid of the `derive_bytemuck_host_shareable`` option rather than have alignment correctness vary with it.
-        quote!(#[repr(C)])
     } else {
-        let alignment = Literal::u32_unsuffixed(struct_alignment);
-        quote!(#[repr(C, align(#alignment))])
+        quote!(#[repr(C)])
     };
 
     let members = struct_members(&members, struct_alignment, module, options, derive_encase);
@@ -496,7 +492,7 @@ mod tests {
 
         assert_tokens_eq!(
             quote! {
-                #[repr(C, align(8))]
+                #[repr(C)]
                 #[derive(Debug, Copy, Clone, PartialEq)]
                 pub struct Atomics {
                     pub num: u32,

@@ -440,7 +440,7 @@ mod test {
     }
 
     #[test]
-    fn create_shader_module_embed_source_rustfmt() {
+    fn create_shader_module_embed_source() {
         let source = include_str!("data/fragment_simple.wgsl");
         let actual = create_shader_module(
             source,
@@ -449,8 +449,12 @@ mod test {
                 ..Default::default()
             },
         )
+        .unwrap()
+        .parse()
         .unwrap();
-        assert_eq!(include_str!("data/fragment_simple.rs"), actual);
+        let expected = include_str!("data/fragment_simple.rs").parse().unwrap();
+
+        assert_tokens_eq!(expected, actual);
     }
 
     #[test]

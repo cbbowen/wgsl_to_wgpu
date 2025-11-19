@@ -1,39 +1,39 @@
-#[repr(C, align(4))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Scalars {
     pub a: u32,
     pub b: i32,
     pub c: f32,
 }
-#[repr(C, align(16))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct VectorsU32 {
     pub a: glam::UVec2,
     pub b: glam::UVec3,
     pub c: glam::UVec4,
 }
-#[repr(C, align(16))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct VectorsI32 {
     pub a: glam::IVec2,
     pub b: glam::IVec3,
     pub c: glam::IVec4,
 }
-#[repr(C, align(16))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct VectorsF32 {
     pub a: glam::Vec2,
     pub b: glam::Vec3,
     pub c: glam::Vec4,
 }
-#[repr(C, align(32))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct VectorsF64 {
     pub a: glam::DVec2,
     pub b: glam::DVec3,
     pub c: glam::DVec4,
 }
-#[repr(C, align(16))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct MatricesF32 {
     pub a: glam::Mat4,
@@ -46,7 +46,7 @@ pub struct MatricesF32 {
     pub h: [[f32; 2]; 3],
     pub i: glam::Mat2,
 }
-#[repr(C, align(32))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct MatricesF64 {
     pub a: glam::DMat4,
@@ -59,20 +59,20 @@ pub struct MatricesF64 {
     pub h: [[f64; 2]; 3],
     pub i: glam::DMat2,
 }
-#[repr(C, align(32))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct StaticArrays {
     pub a: [u32; 5],
     pub b: [f32; 3],
     pub c: [glam::Mat4; 512],
 }
-#[repr(C, align(32))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Nested {
     pub a: MatricesF32,
     pub b: MatricesF64,
 }
-#[repr(C, align(256))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Aligned {
     pub a: u32,

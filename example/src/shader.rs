@@ -5,13 +5,13 @@
 pub struct VertexInput {
     pub position: glam::Vec3,
 }
-#[repr(C, align(16))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, encase :: ShaderType)]
 pub struct Uniforms {
     #[shader(align(16))]
     pub color_rgb: glam::Vec3,
 }
-#[repr(C, align(64))]
+#[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, encase :: ShaderType)]
 pub struct PushConstants {
     #[shader(align(64))]
