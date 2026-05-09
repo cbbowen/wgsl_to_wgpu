@@ -30,10 +30,7 @@ struct State {
 impl State {
     async fn new(window: Window) -> Self {
         let window = Arc::new(window);
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
         let surface = instance.create_surface(window.clone()).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -50,9 +47,9 @@ impl State {
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
                 required_features: wgpu::Features::TEXTURE_COMPRESSION_BC
-                    | wgpu::Features::PUSH_CONSTANTS,
+                    | wgpu::Features::IMMEDIATES,
                 required_limits: wgpu::Limits {
-                    max_push_constant_size: 128,
+                    max_immediate_size: 128,
                     ..Default::default()
                 },
                 ..Default::default()
@@ -228,8 +225,11 @@ impl State {
         }
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.surface.get_current_texture()?;
+    fn render(&mut self) -> Result<(), wgpu::CurrentSurfaceTexture> {
+        let current_surface_texture = self.surface.get_current_texture();
+        let wgpu::CurrentSurfaceTexture::Success(output) = current_surface_texture else {
+            return Err(current_surface_texture);
+        };
         let output_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -270,17 +270,16 @@ impl State {
 
             render_pass.set_pipeline(&self.pipeline);
 
-            // Push constant data also needs to follow alignment rules.
-            let mut push_constant_bytes = UniformBuffer::new(Vec::new());
-            push_constant_bytes
+            // Immediate data also needs to follow alignment rules.
+            let mut immediate_bytes = UniformBuffer::new(Vec::new());
+            immediate_bytes
                 .write(&shader::PushConstants {
                     color_matrix: glam::Mat4::IDENTITY,
                 })
                 .unwrap();
-            render_pass.set_push_constants(
-                wgpu::ShaderStages::VERTEX_FRAGMENT,
+            render_pass.set_immediates(
                 0,
-                &push_constant_bytes.into_inner(),
+                &immediate_bytes.into_inner(),
             );
 
             // Use this function to ensure all bind groups are set.
@@ -348,8 +347,8 @@ impl ApplicationHandler<()> for App {
                 WindowEvent::RedrawRequested => {
                     match state.render() {
                         Ok(_) => {}
-                        Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
-                        Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
+                        Err(wgpu::CurrentSurfaceTexture::Lost) => state.resize(state.size),
+                        Err(wgpu::CurrentSurfaceTexture::Validation) => event_loop.exit(),
                         Err(e) => eprintln!("{e:?}"),
                     }
                     state.window.request_redraw();

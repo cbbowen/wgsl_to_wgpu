@@ -5,7 +5,7 @@ use quote::quote;
 fn define_create_pipeline_layout(
     bind_groups: &[BindGroup],
     all_bind_group_args: &[&syn::BareFnArg],
-    push_constant_range: Option<TokenStream>,
+    immediate_size: TokenStream,
 ) -> TokenStream {
     let bind_group_layouts: Vec<_> = bind_groups
         .iter()
@@ -39,8 +39,8 @@ fn define_create_pipeline_layout(
             let layout = device.create_pipeline_layout(
                     &wgpu::PipelineLayoutDescriptor {
                             label: None,
-                            bind_group_layouts: &[#(&bind_group_layouts.#bind_group_indices),*],
-                            push_constant_ranges: &[#push_constant_range],
+                            bind_group_layouts: &[#(Some(&bind_group_layouts.#bind_group_indices)),*],
+                            immediate_size: #immediate_size,
             });
             let shader_module = self.shader_module.clone();
             PipelineLayout::new(device, shader_module, layout, bind_group_layouts)
@@ -62,7 +62,7 @@ fn define_create_pipeline_layout(
 pub fn define_shader(
     module: &naga::Module,
     bind_groups: &[BindGroup],
-    push_constant_range: Option<TokenStream>,
+    immediate_size: TokenStream,
 ) -> TokenStream {
     let mut validator = naga::valid::Validator::new(
         // TODO: We should probably make this part of the input options.
@@ -86,7 +86,7 @@ pub fn define_shader(
 
     let all_bind_group_args: Vec<_> = bind_groups.iter().flat_map(|g| &g.new_args).collect();
     let create_pipeline_layout =
-        define_create_pipeline_layout(bind_groups, &all_bind_group_args, push_constant_range);
+        define_create_pipeline_layout(bind_groups, &all_bind_group_args, immediate_size);
     let pipeline_layout_key_fields =
         all_bind_group_args
             .iter()

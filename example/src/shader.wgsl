@@ -32,7 +32,7 @@ struct PushConstants {
     color_matrix: mat4x4<f32>
 }
 
-var<push_constant> constants: PushConstants;
+var<immediate> constants: PushConstants;
 
 // https://github.com/gfx-rs/wgpu/pull/6310
 // override force_black: bool;

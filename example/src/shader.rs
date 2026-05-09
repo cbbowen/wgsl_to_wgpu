@@ -216,7 +216,7 @@ impl std::ops::Deref for Shader {
 }
 #[bon::bon]
 impl Shader {
-    pub const SOURCE : & 'static str = "struct VertexInput {\n    @location(0) @align(16) position: vec3<f32>,\n}\n\nstruct VertexOutput {\n    @builtin(position) @align(32) clip_position: vec4<f32>,\n    @location(0) @align(16) tex_coords: vec2<f32>,\n}\n\nstruct Uniforms {\n    @align(16) color_rgb: vec3<f32>,\n}\n\nstruct PushConstants {\n    @align(64) color_matrix: mat4x4<f32>,\n}\n\nconst FORCE_BLACK: bool = false;\nconst SCALE: f32 = 1f;\n\n@group(0) @binding(0) \nvar color_texture: texture_2d<f32>;\n@group(0) @binding(1) \nvar color_sampler: sampler;\n@group(1) @binding(0) \nvar<uniform> uniforms: Uniforms;\nvar<push_constant> constants: PushConstants;\n\n@vertex \nfn vs_main(in: VertexInput) -> VertexOutput {\n    var out: VertexOutput;\n\n    out.clip_position = vec4<f32>(in.position.xyz, 1f);\n    out.tex_coords = ((in.position.xy * 0.5f) + vec2(0.5f));\n    let _e15: VertexOutput = out;\n    return _e15;\n}\n\n@fragment \nfn fs_main(in_1: VertexOutput) -> @location(0) vec4<f32> {\n    let _e4: vec4<f32> = textureSample(color_texture, color_sampler, in_1.tex_coords);\n    let color: vec3<f32> = _e4.xyz;\n    if FORCE_BLACK {\n        return vec4(0f);\n    } else {\n        let _e11: mat4x4<f32> = constants.color_matrix;\n        let _e14: vec3<f32> = uniforms.color_rgb;\n        return (_e11 * vec4<f32>(((color * _e14.xyz) * SCALE), 1f));\n    }\n}\n" ;
+    pub const SOURCE : & 'static str = "struct VertexInput {\n    @location(0) position: vec3<f32>,\n}\n\nstruct VertexOutput {\n    @builtin(position) clip_position: vec4<f32>,\n    @location(0) tex_coords: vec2<f32>,\n}\n\nstruct Uniforms {\n    color_rgb: vec3<f32>,\n}\n\nstruct PushConstants {\n    color_matrix: mat4x4<f32>,\n}\n\nconst FORCE_BLACK: bool = false;\nconst SCALE: f32 = 1f;\n\n@group(0) @binding(0) \nvar color_texture: texture_2d<f32>;\n@group(0) @binding(1) \nvar color_sampler: sampler;\n@group(1) @binding(0) \nvar<uniform> uniforms: Uniforms;\nvar<immediate> constants: PushConstants;\n\n@vertex \nfn vs_main(in: VertexInput) -> VertexOutput {\n    var out: VertexOutput;\n\n    out.clip_position = vec4<f32>(in.position.xyz, 1f);\n    out.tex_coords = ((in.position.xy * 0.5f) + vec2(0.5f));\n    let _e15: VertexOutput = out;\n    return _e15;\n}\n\n@fragment \nfn fs_main(in_1: VertexOutput) -> @location(0) vec4<f32> {\n    let _e4: vec4<f32> = textureSample(color_texture, color_sampler, in_1.tex_coords);\n    let color: vec3<f32> = _e4.xyz;\n    if FORCE_BLACK {\n        return vec4(0f);\n    } else {\n        let _e11: mat4x4<f32> = constants.color_matrix;\n        let _e14: vec3<f32> = uniforms.color_rgb;\n        return (_e11 * vec4<f32>(((color * _e14.xyz) * SCALE), 1f));\n    }\n}\n" ;
     pub fn new(device: wgpu::Device) -> Self {
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
@@ -246,11 +246,8 @@ impl Shader {
         );
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&bind_group_layouts.0, &bind_group_layouts.1],
-            push_constant_ranges: &[wgpu::PushConstantRange {
-                stages: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                range: 0..64,
-            }],
+            bind_group_layouts: &[Some(&bind_group_layouts.0), Some(&bind_group_layouts.1)],
+            immediate_size: 64u32,
         });
         let shader_module = self.shader_module.clone();
         PipelineLayout::new(device, shader_module, layout, bind_group_layouts)

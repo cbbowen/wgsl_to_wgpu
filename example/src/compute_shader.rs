@@ -95,7 +95,7 @@ impl std::ops::Deref for Shader {
 }
 #[bon::bon]
 impl Shader {
-    pub const SOURCE : & 'static str = "struct Uniforms {\n    @align(16) color_rgb: vec3<f32>,\n}\n\n@group(0) @binding(0) \nvar<storage, read_write> uniforms: Uniforms;\n\n@compute @workgroup_size(1, 1, 1) \nfn main(@builtin(global_invocation_id) global_id: vec3<u32>) {\n    if (global_id.x == 0u) {\n        uniforms.color_rgb = vec3(1f);\n        return;\n    } else {\n        return;\n    }\n}\n" ;
+    pub const SOURCE : & 'static str = "struct Uniforms {\n    color_rgb: vec3<f32>,\n}\n\n@group(0) @binding(0) \nvar<storage, read_write> uniforms: Uniforms;\n\n@compute @workgroup_size(1, 1, 1) \nfn main(@builtin(global_invocation_id) global_id: vec3<u32>) {\n    if (global_id.x == 0u) {\n        uniforms.color_rgb = vec3(1f);\n        return;\n    } else {\n        return;\n    }\n}\n" ;
     pub fn new(device: wgpu::Device) -> Self {
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
@@ -112,8 +112,8 @@ impl Shader {
         let bind_group_layouts = (BindGroupLayout0::new(device.clone()),);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&bind_group_layouts.0],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layouts.0)],
+            immediate_size: 0u32,
         });
         let shader_module = self.shader_module.clone();
         PipelineLayout::new(device, shader_module, layout, bind_group_layouts)

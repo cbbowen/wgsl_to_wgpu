@@ -54,7 +54,7 @@ impl Shader {
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
             bind_group_layouts: &[],
-            push_constant_ranges: &[],
+            immediate_size: 0u32,
         });
         let shader_module = self.shader_module.clone();
         PipelineLayout::new(device, shader_module, layout, bind_group_layouts)

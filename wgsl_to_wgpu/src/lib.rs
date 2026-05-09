@@ -40,7 +40,7 @@ use std::{
 use bindgroup::{bind_groups_module, get_bind_group_data};
 use consts::pipeline_overridable_constants;
 use entry::{entry_point_constants, vertex_struct_methods};
-use proc_macro2::{Literal, Span, TokenStream};
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::Ident;
 use thiserror::Error;
@@ -206,11 +206,11 @@ pub fn create_shader_module_tokens(
     let vertex_module = vertex_struct_methods(module);
     let entry_point_constants = entry_point_constants(module);
 
-    let push_constant_range = push_constant_range(module, shader_stages);
+    let immediate_size = immediate_size(module);
 
     let override_constants = pipeline_overridable_constants(module, options);
 
-    let shader_definition = shader::define_shader(module, &bind_groups, push_constant_range);
+    let shader_definition = shader::define_shader(module, &bind_groups, immediate_size);
     let pipeline_layout = pipeline_layout::define_pipeline_layout(module, &bind_groups, options);
 
     Ok(quote! {
@@ -253,32 +253,19 @@ pub fn create_shader_module_tokens(
 //     let mut composer = naga_oil::compose::Composer::default();
 // }
 
-fn push_constant_range(
+fn immediate_size(
     module: &naga::Module,
-    shader_stages: wgpu::ShaderStages,
-) -> Option<TokenStream> {
-    // Assume only one variable is used with var<push_constant> in WGSL.
-    let push_constant_size = module.global_variables.iter().find_map(|g| {
-        if g.1.space == naga::AddressSpace::PushConstant {
+) -> TokenStream {
+    // Assume only one variable is used with var<immediate> in WGSL.
+    let immediate_size = module.global_variables.iter().find_map(|g| {
+        if g.1.space == naga::AddressSpace::Immediate {
             Some(module.types[g.1.ty].inner.size(module.to_ctx()))
         } else {
             None
         }
     });
-
-    let stages = quote_shader_stages(shader_stages);
-
-    // Use a single push constant range for all shader stages.
-    // This allows easily setting push constants in a single call with offset 0.
-    push_constant_size.map(|size| {
-        let size = Literal::usize_unsuffixed(size as usize);
-        quote! {
-            wgpu::PushConstantRange {
-                stages: #stages,
-                range: 0..#size
-            }
-        }
-    })
+    let immediate_size = immediate_size.unwrap_or(0);
+    quote!(#immediate_size)
 }
 
 fn pretty_print(output: TokenStream) -> String {
@@ -358,7 +345,7 @@ mod test {
     #[test]
     fn create_shader_module_include_source() {
         let source = indoc! {r#"
-            var<push_constant> consts: vec4<f32>;
+            var<immediate> consts: vec4<f32>;
 
             @fragment
             fn fs_main() {}
@@ -410,7 +397,7 @@ mod test {
                 #[bon::bon]
                 impl Shader {
                     pub const SOURCE: &'static str =
-                        "var<push_constant> consts: vec4<f32>;\n\n@fragment \nfn fs_main() {\n    return;\n}\n";
+                        "var<immediate> consts: vec4<f32>;\n\n@fragment \nfn fs_main() {\n    return;\n}\n";
                     pub fn new(device: wgpu::Device) -> Self {
                         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                             label: None,
@@ -428,10 +415,7 @@ mod test {
                         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                             label: None,
                             bind_group_layouts: &[],
-                            push_constant_ranges: &[wgpu::PushConstantRange {
-                                stages: wgpu::ShaderStages::FRAGMENT,
-                                range: 0..16,
-                            }],
+                            immediate_size: 16u32,
                         });
                         let shader_module = self.shader_module.clone();
                         PipelineLayout::new(device, shader_module, layout, bind_group_layouts)
