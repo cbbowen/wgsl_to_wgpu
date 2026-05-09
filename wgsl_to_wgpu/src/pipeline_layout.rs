@@ -90,7 +90,7 @@ fn define_create_render_pipeline(
                             module,
                             entry_point: Some(#entry_name),
                             compilation_options: compilation_options.clone(),
-                            buffers: &[#(#vertex_buffer_layouts),*],
+                            buffers: &[#(Some(#vertex_buffer_layouts)),*],
                     },
                     primitive,
                     depth_stencil,

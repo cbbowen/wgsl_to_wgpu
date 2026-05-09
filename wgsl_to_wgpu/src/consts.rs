@@ -24,6 +24,8 @@ pub fn consts(module: &naga::Module, options: &WriteOptions) -> Vec<TokenStream>
                         let v = v.to_f64();
                         Some(quote!(::half::f16 = ::half::f16::from_f64_const(#v)))
                     }
+                    naga::Literal::U16(v) => Some(quote!(u16 = #v)),
+                    naga::Literal::I16(v) => Some(quote!(i16 = #v)),
                     naga::Literal::U32(v) => Some(quote!(u32 = #v)),
                     naga::Literal::I32(v) => Some(quote!(i32 = #v)),
                     naga::Literal::U64(v) => Some(quote!(u64 = #v)),
