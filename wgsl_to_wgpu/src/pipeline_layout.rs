@@ -90,7 +90,9 @@ fn define_create_render_pipeline(
                             module,
                             entry_point: Some(#entry_name),
                             compilation_options: compilation_options.clone(),
-                            buffers: &[#(Some(#vertex_buffer_layouts)),*],
+                            // wgpu 29.0
+                            // buffers: &[#(Some(#vertex_buffer_layouts)),*],
+                            buffers: &[#(#vertex_buffer_layouts),*],
                     },
                     primitive,
                     depth_stencil,

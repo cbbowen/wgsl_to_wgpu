@@ -246,7 +246,7 @@ impl Shader {
         );
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[Some(&bind_group_layouts.0), Some(&bind_group_layouts.1)],
+            bind_group_layouts: &[&bind_group_layouts.0, &bind_group_layouts.1],
             immediate_size: 64u32,
         });
         let shader_module = self.shader_module.clone();
@@ -345,7 +345,7 @@ impl PipelineLayout {
                 module,
                 entry_point: Some("vs_main"),
                 compilation_options: compilation_options.clone(),
-                buffers: &[Some(VertexInput::vertex_buffer_layout(in_step_mode))],
+                buffers: &[VertexInput::vertex_buffer_layout(in_step_mode)],
             },
             primitive,
             depth_stencil,

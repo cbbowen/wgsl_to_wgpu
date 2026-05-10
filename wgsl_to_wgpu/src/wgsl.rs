@@ -14,10 +14,11 @@ pub fn shader_stages(module: &naga::Module) -> wgpu::ShaderStages {
             naga::ShaderStage::Compute => wgpu::ShaderStages::COMPUTE,
             naga::ShaderStage::Task => wgpu::ShaderStages::TASK,
             naga::ShaderStage::Mesh => wgpu::ShaderStages::MESH,
-            naga::ShaderStage::RayGeneration => wgpu::ShaderStages::RAY_GENERATION,
-            naga::ShaderStage::AnyHit => wgpu::ShaderStages::ANY_HIT,
-            naga::ShaderStage::ClosestHit => wgpu::ShaderStages::CLOSEST_HIT,
-            naga::ShaderStage::Miss => wgpu::ShaderStages::MISS,
+            // wgpu 29.0
+            // naga::ShaderStage::RayGeneration => wgpu::ShaderStages::RAY_GENERATION,
+            // naga::ShaderStage::AnyHit => wgpu::ShaderStages::ANY_HIT,
+            // naga::ShaderStage::ClosestHit => wgpu::ShaderStages::CLOSEST_HIT,
+            // naga::ShaderStage::Miss => wgpu::ShaderStages::MISS,
         })
         .collect()
 }
@@ -125,7 +126,8 @@ pub fn rust_type(
         naga::TypeInner::BindingArray { base: _, size: _ } => todo!(),
         naga::TypeInner::AccelerationStructure { .. } => todo!(),
         naga::TypeInner::RayQuery { .. } => todo!(),
-        naga::TypeInner::CooperativeMatrix { .. } => todo!(),
+        // wgpu 29.0
+        // naga::TypeInner::CooperativeMatrix { .. } => todo!(),
     }
 }
 

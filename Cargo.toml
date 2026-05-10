@@ -4,9 +4,9 @@ resolver = "2"
 members = ["wgsl_to_wgpu", "example"]
 
 [workspace.dependencies]
-wgpu = "29.0"
-wgpu-types = "29.0"
-naga = "29.0"
+wgpu = "28.0"
+wgpu-types = "28.0"
+naga = "28.0"
 
 # The WGSL backend for WGPU doesn't preserve alignment. This means it silently produce different WGSL output, leading to layout mismatches. I have a fork that fixes this, but the upstream maintainers reject changes only applicable to the WGSL -> WGSL use-case.
 [patch.crates-io]

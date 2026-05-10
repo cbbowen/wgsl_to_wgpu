@@ -112,7 +112,7 @@ impl Shader {
         let bind_group_layouts = (BindGroupLayout0::new(device.clone()),);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[Some(&bind_group_layouts.0)],
+            bind_group_layouts: &[&bind_group_layouts.0],
             immediate_size: 0u32,
         });
         let shader_module = self.shader_module.clone();

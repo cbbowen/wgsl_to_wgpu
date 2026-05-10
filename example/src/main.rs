@@ -27,17 +27,24 @@ struct State {
     compute_bind_group: compute_shader::BindGroup0,
 }
 
+// wgpu 29.0
+// type RenderError = wgpu::CurrentSurfaceTexture;
+type RenderError = wgpu::SurfaceError;
+
 impl State {
     async fn new(window: Window) -> Self {
         let window = Arc::new(window);
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+        // wgpu 29.0
+        // let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let surface = instance.create_surface(window.clone()).unwrap();
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
-                apply_limit_buckets: false,
+                // wgpu 29.0
+                // apply_limit_buckets: false,
             })
             .await
             .unwrap();
@@ -226,11 +233,13 @@ impl State {
         }
     }
 
-    fn render(&mut self) -> Result<(), wgpu::CurrentSurfaceTexture> {
+    fn render(&mut self) -> Result<(), RenderError> {
         let current_surface_texture = self.surface.get_current_texture();
-        let wgpu::CurrentSurfaceTexture::Success(output) = current_surface_texture else {
-            return Err(current_surface_texture);
-        };
+        // wgpu 29.0
+        // let wgpu::CurrentSurfaceTexture::Success(output) = current_surface_texture else {
+        //     return Err(current_surface_texture);
+        // };
+        let output = current_surface_texture?;
         let output_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -293,7 +302,9 @@ impl State {
         self.queue.submit(iter::once(encoder.finish()));
 
         // Actually draw the frame.
-        self.queue.present(output);
+        // wgpu 29.0
+        // self.queue.present(output);
+        output.present();
 
         Ok(())
     }
@@ -348,8 +359,11 @@ impl ApplicationHandler<()> for App {
                 WindowEvent::RedrawRequested => {
                     match state.render() {
                         Ok(_) => {}
-                        Err(wgpu::CurrentSurfaceTexture::Lost) => state.resize(state.size),
-                        Err(wgpu::CurrentSurfaceTexture::Validation) => event_loop.exit(),
+                        Err(RenderError::Lost) => state.resize(state.size),
+                        // wgpu 29.0
+                        // Err(RenderError::Validation) => event_loop.exit(),
+                        Err(RenderError::OutOfMemory) => event_loop.exit(),
+
                         Err(e) => eprintln!("{e:?}"),
                     }
                     state.window.request_redraw();

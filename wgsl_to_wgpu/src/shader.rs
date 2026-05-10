@@ -39,7 +39,9 @@ fn define_create_pipeline_layout(
             let layout = device.create_pipeline_layout(
                     &wgpu::PipelineLayoutDescriptor {
                             label: None,
-                            bind_group_layouts: &[#(Some(&bind_group_layouts.#bind_group_indices)),*],
+                            // wgpu 29.0
+                            // bind_group_layouts: &[#(Some(&bind_group_layouts.#bind_group_indices)),*],
+                            bind_group_layouts: &[#(&bind_group_layouts.#bind_group_indices),*],
                             immediate_size: #immediate_size,
             });
             let shader_module = self.shader_module.clone();
