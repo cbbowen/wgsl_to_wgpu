@@ -37,7 +37,7 @@ fn define_create_render_pipeline(
     entry: &naga::EntryPoint,
     options: &WriteOptions,
 ) -> PipelineData {
-    let structs = super::wgsl::vertex_entry_structs(entry, module);
+    let structs = super::wgsl::vertex_entry_structs(entry, module, options);
     let entry_name = options.undecorate(&entry.name);
 
     let pipeline_cache = Ident::new(&format!("{}_pipelines", entry_name), Span::call_site());

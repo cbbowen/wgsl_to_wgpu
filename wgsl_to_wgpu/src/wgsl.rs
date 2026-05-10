@@ -253,12 +253,12 @@ pub struct VertexInput {
 
 // TODO: Handle errors.
 // Collect the necessary data to generate an equivalent Rust struct.
-pub fn get_vertex_input_structs(module: &naga::Module) -> Vec<VertexInput> {
+pub fn get_vertex_input_structs(module: &naga::Module, options: &WriteOptions) -> Vec<VertexInput> {
     let mut structs: Vec<_> = module
         .entry_points
         .iter()
         .filter(|e| e.stage == naga::ShaderStage::Vertex)
-        .flat_map(|vertex_entry| vertex_entry_structs(vertex_entry, module))
+        .flat_map(|vertex_entry| vertex_entry_structs(vertex_entry, module, options))
         .collect();
 
     // Remove structs that are used more than once.
@@ -271,6 +271,7 @@ pub fn get_vertex_input_structs(module: &naga::Module) -> Vec<VertexInput> {
 pub fn vertex_entry_structs(
     vertex_entry: &naga::EntryPoint,
     module: &naga::Module,
+    options: &WriteOptions,
 ) -> Vec<VertexInput> {
     vertex_entry
         .function
@@ -283,7 +284,10 @@ pub fn vertex_entry_structs(
                 naga::TypeInner::Struct { members, span: _ } => {
                     let input = VertexInput {
                         name: argument.name.as_ref().unwrap().clone(),
-                        type_name: Ident::new(arg_type.name.as_ref().unwrap(), Span::call_site()),
+                        type_name: Ident::new(
+                            options.undecorate(arg_type.name.as_ref().unwrap()),
+                            Span::call_site(),
+                        ),
                         fields: members
                             .iter()
                             .filter_map(|member| {

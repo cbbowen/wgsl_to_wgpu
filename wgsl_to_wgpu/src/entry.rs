@@ -3,6 +3,8 @@ use proc_macro2::{Literal, Span, TokenStream};
 use quote::quote;
 use syn::Ident;
 
+use crate::WriteOptions;
+
 pub fn fragment_target_count(module: &Module, f: &Function) -> usize {
     match &f.result {
         Some(r) => match &r.binding {
@@ -80,13 +82,13 @@ pub fn entry_point_constants(module: &naga::Module) -> TokenStream {
     }
 }
 
-pub fn vertex_struct_methods(module: &naga::Module) -> TokenStream {
-    let structs = vertex_input_structs(module);
+pub fn vertex_struct_methods(module: &naga::Module, options: &WriteOptions) -> TokenStream {
+    let structs = vertex_input_structs(module, options);
     quote!(#(#structs)*)
 }
 
-fn vertex_input_structs(module: &naga::Module) -> Vec<TokenStream> {
-    let vertex_inputs = crate::wgsl::get_vertex_input_structs(module);
+fn vertex_input_structs(module: &naga::Module, options: &WriteOptions) -> Vec<TokenStream> {
+    let vertex_inputs = crate::wgsl::get_vertex_input_structs(module, options);
     vertex_inputs.iter().map(|input|  {
         let name = &input.type_name;
 

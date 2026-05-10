@@ -203,7 +203,7 @@ pub fn create_shader_module_tokens(
     let consts = consts::consts(module, options);
     let (bind_groups_module, bind_groups) =
         bind_groups_module(&bind_group_data, shader_stages, options);
-    let vertex_module = vertex_struct_methods(module);
+    let vertex_module = vertex_struct_methods(module, options);
     let entry_point_constants = entry_point_constants(module);
 
     let immediate_size = immediate_size(module);
@@ -253,9 +253,7 @@ pub fn create_shader_module_tokens(
 //     let mut composer = naga_oil::compose::Composer::default();
 // }
 
-fn immediate_size(
-    module: &naga::Module,
-) -> TokenStream {
+fn immediate_size(module: &naga::Module) -> TokenStream {
     // Assume only one variable is used with var<immediate> in WGSL.
     let immediate_size = module.global_variables.iter().find_map(|g| {
         if g.1.space == naga::AddressSpace::Immediate {
@@ -552,7 +550,7 @@ mod test {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = vertex_struct_methods(&module);
+        let actual = vertex_struct_methods(&module, &WriteOptions::default());
 
         assert_tokens_eq!(quote!(), actual);
     }
@@ -572,7 +570,7 @@ mod test {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = vertex_struct_methods(&module);
+        let actual = vertex_struct_methods(&module, &WriteOptions::default());
 
         assert_tokens_eq!(
             quote! {
@@ -629,7 +627,7 @@ mod test {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = vertex_struct_methods(&module);
+        let actual = vertex_struct_methods(&module, &WriteOptions::default());
 
         assert_tokens_eq!(
             quote! {
@@ -687,7 +685,7 @@ mod test {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = vertex_struct_methods(&module);
+        let actual = vertex_struct_methods(&module, &WriteOptions::default());
 
         assert_tokens_eq!(
             quote! {
@@ -744,7 +742,7 @@ mod test {
         "#};
 
         let module = naga::front::wgsl::parse_str(source).unwrap();
-        let actual = vertex_struct_methods(&module);
+        let actual = vertex_struct_methods(&module, &WriteOptions::default());
 
         assert_tokens_eq!(
             quote! {
@@ -829,6 +827,30 @@ mod test {
             naga::front::wgsl::parse_str(include_str!("data/vertex_entries.wgsl")).unwrap();
         let actual = create_shader_module_tokens(&module, &WriteOptions::default()).unwrap();
         let expected = include_str!("data/vertex_entries.rs").parse().unwrap();
+
+        assert_tokens_eq!(expected, actual);
+    }
+
+    #[test]
+    fn undecorate() {
+        // Check that demangling works.
+        let module = naga::front::wgsl::parse_str(include_str!("data/mangled.wgsl")).unwrap();
+        let actual = create_shader_module_tokens(
+            &module,
+            &WriteOptions {
+                undecorate_pattern: Some(
+                    regex::Regex::new(&format!(
+                        r"^(?:\x1B\[\d+\w)?([\w\d_]+){}(?:[A-Z0-9]*){}$",
+                        regex::escape("X_naga_oil_mod_X"),
+                        regex::escape("X")
+                    ))
+                    .unwrap(),
+                ),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let expected = include_str!("data/mangled.rs").parse().unwrap();
 
         assert_tokens_eq!(expected, actual);
     }
